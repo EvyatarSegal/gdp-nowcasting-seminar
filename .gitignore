@@ -1,3 +1,6 @@
 rsconnect/
 .Renviron
 *.dcf
+/.rproj.user
+*.xlsx
+*.csv

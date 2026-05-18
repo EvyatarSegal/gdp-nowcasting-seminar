@@ -77,7 +77,10 @@ in this notebook we will take our daily, monthly and quarterly tables, examine t
 ## Import data sets:
 
 ```{r}
-path <- "C:/Users/eladb/OneDrive/Desktop/University/Bachelor's/2025 B/Nowcasting/Seminar/data/raw/nowcasting_data_raw.xlsx"
+# path <- "C:/Users/eladb/OneDrive/Desktop/University/Bachelor's/2025 B/Nowcasting/Seminar/data/raw/nowcasting_data_raw.xlsx"
+
+# Hardcoding a path is a bad habit, lets use relative path
+path <- paste0(getwd(), "/data/raw/nowcasting_data_raw.xlsx", sep = "")
 ```
 
 ```{r}
@@ -234,7 +237,8 @@ since I didn't automate this yet, manually tracking meta data:
 2.  Oil and FX reserves are adjusted USD and CPI
 
 ```{r}
-save_list_to_excel(blocks_real, "blocks_real.xlsx")
+# Note from Evyatar: Again, lets use relative paths
+save_list_to_excel(blocks_real, "data\intermediate\blocks_real.xlsx")
 ```
 
 ## Seasonality
