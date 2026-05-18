@@ -80,7 +80,9 @@ in this notebook we will take our daily, monthly and quarterly tables, examine t
 # path <- "C:/Users/eladb/OneDrive/Desktop/University/Bachelor's/2025 B/Nowcasting/Seminar/data/raw/nowcasting_data_raw.xlsx"
 
 # Hardcoding a path is a bad habit, lets use relative path
+setwd("..")
 path <- paste0(getwd(), "/data/raw/nowcasting_data_raw.xlsx", sep = "")
+
 ```
 
 ```{r}
@@ -229,6 +231,66 @@ head(blocks_real$FX_liqudity$`Foreign exchange reserves (millions of dollars)`)
 head(blocks_raw$FX_liqudity$`Foreign exchange reserves (millions of dollars)`)
 ```
 
+```{r}
+# Create a table with Date, FX reserves, and CPI from adjusters
+table1 <- blocks_raw$FX_liqudity %>%
+  select(Date, `Foreign exchange reserves (millions of dollars)`) %>%
+  left_join(blocks_raw$adjusters %>% select(Date, CPI), by = "Date") %>%
+  head(10)
+
+knitr::kable(table1, caption = "Date, FX Reserves, and CPI (from blocks_raw)")
+```
+
+```{r}
+# Create a table with just Date and FX reserves from blocks_real
+table2 <- blocks_real$FX_liqudity %>%
+  select(Date, `Foreign exchange reserves (millions of dollars)`) %>%
+  head(10)
+
+knitr::kable(table2, caption = "Date and FX Reserves (from blocks_real)")
+```
+
+# This seems wrong, a deeper dive is needed
+
+```{r}
+# Create comparison table with all values side by side
+raw_data <- blocks_raw$FX_liqudity %>%
+  select(Date, `Foreign exchange reserves (millions of dollars)`)
+
+cpi_data <- blocks_raw$adjusters %>%
+  select(Date, CPI)
+
+# Join raw data with CPI
+joined_data <- raw_data %>%
+  left_join(cpi_data, by = "Date") %>%
+  mutate(
+    Real_Value_Calculated = `Foreign exchange reserves (millions of dollars)` / (CPI / 100)
+  )
+
+# Get the real values from blocks_real
+blocks_real_values <- blocks_real$FX_liqudity %>%
+  select(Date, `Foreign exchange reserves (millions of dollars)`) %>%
+  rename(Real_Value_From_Blocks_Real = `Foreign exchange reserves (millions of dollars)`)
+
+# Final comparison table
+comparison_table <- joined_data %>%
+  left_join(blocks_real_values, by = "Date") %>%
+  select(Date, `Foreign exchange reserves (millions of dollars)`, CPI, Real_Value_Calculated, Real_Value_From_Blocks_Real) %>%
+  rename(
+    Raw_Value = `Foreign exchange reserves (millions of dollars)`
+  ) %>%
+  head(10)
+
+# Display the table
+knitr::kable(comparison_table, 
+             caption = "Complete Comparison: Raw Values, CPI, Calculated Real Values, and Blocks_Real Values",
+             digits = 2)
+
+
+```
+
+So the transformations wasn't normalising with the CPI? Need to ask Gilad and Elad
+
 ### Save Results
 
 since I didn't automate this yet, manually tracking meta data:
@@ -238,7 +300,8 @@ since I didn't automate this yet, manually tracking meta data:
 
 ```{r}
 # Note from Evyatar: Again, lets use relative paths
-save_list_to_excel(blocks_real, "data\intermediate\blocks_real.xlsx")
+setwd("..")
+save_list_to_excel(blocks_real, paste0(getwd(), "/data/intermediate/blocks_real.xlsx"))
 ```
 
 ## Seasonality
