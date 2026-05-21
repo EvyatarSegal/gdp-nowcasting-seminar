@@ -461,11 +461,13 @@ write_sa_info <- function(sa_info, file_path = "sa_info.xlsx") {
 ```
 
 ```{r}
-write_sa_info(sa_info, "SA_results_01.xlsx")
+setwd("..")
+write_sa_info(sa_info, "data/intermediate/SA_results_01.xlsx")
 ```
 
 ```{r}
-save_list_to_excel(blocks_sa, "blocks_sa_01.xlsx")
+setwd("..")
+save_list_to_excel(blocks_sa, "data/intermediate/blocks_sa_01.xlsx")
 ```
 
 ## Transformations
@@ -864,11 +866,13 @@ save_transformation_info <- function(info_list, file_path = "transformation_info
 ```
 
 ```{r}
-save_transformation_info(transformation_info, "TRANSFORMATION_INFO.xlsx")
+setwd("..")
+save_transformation_info(transformation_info, "output/TRANSFORMATION_INFO.xlsx")
 
 ```
 
 ```{r}
+setwd("..")
 save_list_to_excel(blocks_transformed, "blocks_transformed.xlsx")
 ```
 
@@ -1041,13 +1045,15 @@ shift_report$FX_liqudity <- out$report
 ### Save Results
 
 ```{r}
-blocks_shifted_path <- "C:/Users/eladb/OneDrive/Desktop/University/Bachelor's/2025 B/Nowcasting/Seminar/data/lag_adjusted/blocks_shifted.xlsx"
+setwd("..")
+blocks_shifted_path <- "data/clean/blocks_shifted.xlsx"
 
 save_list_to_excel(blocks_shifted, blocks_shifted_path)
 ```
 
 ```{r}
-save_transformation_info(shift_report, "shift_report.xlsx")
+setwd("..")
+save_transformation_info(shift_report, "output/shift_report.xlsx")
 ```
 
 # Create Unified Table for Modeling
@@ -1056,14 +1062,15 @@ this script takes your transformed data and turn it into unified sheet that fits
 
 ```{r}
 # Input: multi-sheet transformed + lag-adjusted workbook
+setwd("..")
 if (!exists("blocks_shifted_path")) {
-  blocks_shifted_path <- "C:/Users/eladb/OneDrive/Desktop/University/Bachelor's/2025 B/Nowcasting/Seminar/data/lag_adjusted/blocks_shifted.xlsx"
+  blocks_shifted_path <- "data/clean/blocks_shifted.xlsx"
 }
 
 input_path <- blocks_shifted_path
 
 # Output: one-sheet panel for DFM
-output_path <- "C:/Users/eladb/OneDrive/Desktop/University/Bachelor's/2025 B/Nowcasting/Seminar/data/unified/combined_monthly_panel_Q_refined.xlsx"
+output_path <- "data/clean/combined_monthly_panel_Q_refined.xlsx"
 
 # Read sheet names, excluding adjusters
 sheets <- readxl::excel_sheets(input_path)
