@@ -509,7 +509,7 @@ test_transform <- function(x, freq = 12, alpha = 0.05) {
   # 5. Logic
   adf_stationary <- !is.na(adf_p)  && adf_p < alpha
   kpss_stationary <- !is.na(kpss_p) && kpss_p > alpha
-  
+  # Check "dfgls" - more modern than adf
   # Base decision
   if (adf_stationary && kpss_stationary) {
     base <- "none"
@@ -1032,7 +1032,8 @@ run for each block
 
 ```{r}
 block <- blocks_transformed$FX_liqudity # choose your block
-lags <- c(1,0,1) # rep(val, n)
+# lags <- c(1,0,1) # rep(val, n) # Evyatar: I'm adding a value for this to run with no errors
+lags <- c(1,0,1,0)
 ```
 
 ```{r}
