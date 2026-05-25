@@ -575,7 +575,19 @@ y_vec <- y_train$GDP
 ```
 
 ```{r}
-dtrain <- xgb.DMatrix(data = X_mat, label = y_vec)
+# 1. Identify the most recent date in training set
+max_date <- max(x_train$Date)
+
+# 2. Calculate the difference in years between max_date and each row's Date
+time_diff_years <- as.numeric(difftime(max_date, x_train$Date, units = "days")) / 365.25
+
+# 3. Define your decay parameter (lambda)
+# lambda = 0 means equal weights. Higher lambda means faster decay of older data.
+lambda <- 0.15 
+weights_vec <- exp(-lambda * time_diff_years)
+
+# Pass the weights vector directly into the DMatrix
+dtrain <- xgb.DMatrix(data = X_mat, label = y_vec, weight = weights_vec)
 ```
 
 ```{r}
