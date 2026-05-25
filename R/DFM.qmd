@@ -20,6 +20,7 @@ library(purrr)
 library(xts)
 library(lubridate)
 library(vars)
+library(openxlsx)
 ```
 
 ## Load Data
@@ -193,7 +194,7 @@ basic function to save results to xlsx file
 ```{r}
 setwd("..")
 write_forecast_info <- function(results_report, file_path = "output/forecast.xlsx") {
-  wb <- createWorkbook()
+  wb <- openxlsx::createWorkbook()
   
   for (bn in names(results_report)) {
     addWorksheet(wb, bn)
