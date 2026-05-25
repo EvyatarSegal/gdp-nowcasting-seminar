@@ -505,7 +505,7 @@ time_diff_years <- as.numeric(difftime(max_date, x_train$Date, units = "days")) 
 # The winning configuration from Rolling-Origin Validation:
 # Function: Sigmoid
 # p1 = 3.968421, p2 = 9.842105
-weights_vec <- 1 / (1 + exp(3.968421 * (time_diff_years - 9.842105))))
+weights_vec <- 1 / (1 + exp(3.968421 * (time_diff_years - 9.842105)))
 
 # Pass the weights vector directly into the DMatrix
 dtrain <- xgb.DMatrix(data = X_mat, label = y_vec, weight = weights_vec)
