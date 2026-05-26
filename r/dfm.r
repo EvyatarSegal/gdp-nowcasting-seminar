@@ -542,8 +542,7 @@ results <- data.frame(
   mutate(YearMonth = format(Date, "%Y-%m"))
 
 # Join against the safely aligned GDP set we built in Step 2
-results <- left_join(results, gdp_aligned, by = "YearMonth") %>%
-  select(-YearMonth)
+results <- left_join(results, gdp_aligned, by = "YearMonth")
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # 8. Evaluation Metrics
