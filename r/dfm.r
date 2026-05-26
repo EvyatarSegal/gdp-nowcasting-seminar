@@ -530,9 +530,24 @@ results <- data.frame(
 )
 
 
+# === INSERT THE FIX HERE ===
+library(lubridate)
+
+# 1. Normalize results date to the 1st of the month
+results$Date <- as.Date(floor_date(results$Date, "month"))
+
+# 2. Create a clean mapping dataframe from df, forcing dates to the 1st of the month
+df_matching <- df %>%
+  mutate(MatchDate = as.Date(floor_date(Date, "month"))) %>%
+  filter(!is.na(GDP))
+
+# 3. Join them together safely
+results <- left_join(results, df_matching, by = c("Date" = "MatchDate"))
+# ===========================
+
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-results <- left_join(results, df[, c("Date", "GDP")],
-                            by = join_by(Date))
+# results <- left_join(results, df[, c("Date", "GDP")],
+                            # by = join_by(Date))
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -576,4 +591,7 @@ axis(1,
      at = quarterly_fcst$Date,
      labels = format(quarterly_fcst$Date, "%b %Y"),
      las = 2)
+
+
+
 
