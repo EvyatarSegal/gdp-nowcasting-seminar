@@ -455,149 +455,127 @@ for (i in seq_along(all_months)) {
 
 
 
-
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## Bridge
 library(xgboost)
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# for the training set I am using the factors estimated in the earlier step
-x_train <- dfm_curr$F_qml[5:309, ]
-
+library(dplyr)
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# since the factors in the "dfm_curr" don't have dates I have to manually adjust it - you should know the dates allingments
+# 1. Build the full timeline of factors
 start_date <- as.Date("1995-07-01")
-n <- nrow(x_train)
-
+n <- nrow(dfm_curr$F_qml)
 dates_monthly <- seq(from = start_date, by = "month", length.out = n)
 
-x_train <- data.frame(Date = dates_monthly, x_train)
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# here I only want to use the factors that are from the quarter end rows
-x_train$month <- as.integer(format(x_train$Date, "%m"))
-x_train <- x_train[x_train$month %in% c(1,4,7,10), ]
-
-
-y_train <- df[!is.na(df$GDP), c("Date", "GDP")]
+factors_with_dates <- data.frame(Date = dates_monthly, dfm_curr$F_qml) %>%
+  mutate(
+    YearMonth = format(Date, "%Y-%m"),
+    month = as.integer(format(Date, "%m"))
+  ) %>%
+  filter(month %in% c(1, 4, 7, 10)) # Keep only quarter-start/factor months
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# Join to ensure exact row match for xgboost
-train_data <- inner_join(x_train, y_train, by = "Date")
-
-# Force standard dataframe to prevent tibble memory layout bug in xgboost
-X_mat <- as.matrix(as.data.frame(train_data)[, c("f1","f2","f3","f4")])
-mode(X_mat) <- "numeric"
-y_vec <- as.numeric(train_data$GDP)
+# 2. Shift historical GDP backwards by 2 months to align with the factor timeline
+# (e.g., Q1 GDP reported in March -> shifts to January to align with January's factors)
+gdp_aligned <- df %>%
+  filter(!is.na(GDP)) %>%
+  mutate(
+    TrueDate = as.Date(Date),
+    # Safely subtract 2 months
+    AlignedDate = do.call(c, lapply(TrueDate, function(d) seq(d, by = "-2 months", length.out = 2)[2])),
+    YearMonth = format(AlignedDate, "%Y-%m")
+  ) %>%
+  group_by(YearMonth) %>%
+  summarise(GDP = first(GDP), .groups = "drop")
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# 1. Identify the most recent date in training set
+# 3. Create perfectly synchronized Training Matrices
+train_data <- inner_join(factors_with_dates, gdp_aligned, by = "YearMonth") %>%
+  arrange(Date) # Ensure chronological integrity
+
+X_mat <- as.matrix(train_data[, c("f1", "f2", "f3", "f4")])
+y_vec <- train_data$GDP
+
+# Absolute sanity check before passing to XGBoost
+stopifnot(nrow(X_mat) == length(y_vec))
+
+## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 4. Apply Time Decay Weights (Sigmoid Configuration)
 max_date <- max(train_data$Date)
-
-# 2. Calculate the difference in years between max_date and each row's Date
 time_diff_years <- as.numeric(difftime(max_date, train_data$Date, units = "days")) / 365.25
 
-# 3. Define your decay parameter (lambda)
-## lambda = 0 means equal weights. Higher lambda means faster decay of older data.
-# lambda <- 0.15 
-# weights_vec <- exp(-lambda * time_diff_years)
-
-# The winning configuration from Rolling-Origin Validation:
-# Function: Sigmoid
-# p1 = 3.968421, p2 = 9.842105
 weights_vec <- 1 / (1 + exp(3.968421 * (time_diff_years - 9.842105)))
 
-# Pass the weights vector directly into the DMatrix
 dtrain <- xgb.DMatrix(data = X_mat, label = y_vec, weight = weights_vec)
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 5. Train the XGBoost Model
 params <- list(
   objective = "reg:squarederror",
   eval_metric = "rmse",
   eta = 0.015,
-  max_depth = 4,       
+  max_depth = 4,        
   subsample = 0.8,
   colsample_bytree = 0.8
 )
 
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 xgb_model <- xgb.train(
   params = params,
   data = dtrain,
   nrounds = 300
 )
 
-
-
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 6. Prepare Test Set (Out-of-Sample / Forecast Window)
 X_test_factors <- results_report[rowSums(is.na(results_report[ , -1])) < ncol(results_report) - 1, ]
 
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 X_test_mat <- as.matrix(X_test_factors[, c("h0_f1","h0_f2","h0_f3", "h0_f4")])
 colnames(X_test_mat) <- c("f1","f2","f3", "f4")
 
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 pred_test <- predict(xgb_model, X_test_mat)
 
-
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 7. Merge Predictions with Realized GDP 
 results <- data.frame(
-  Date = X_test_factors$Date,
+  Date = as.Date(X_test_factors$Date),
   GDP_FCST = pred_test
-)
+) %>%
+  mutate(YearMonth = format(Date, "%Y-%m"))
 
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-results <- left_join(results, df[, c("Date", "GDP")],
-                            by = join_by(Date))
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-plot(results$Date, results$GDP, type="l", col="blue", lwd=2)
-lines(results$Date, results$GDP_FCST, col="red", lwd=2)
-legend("bottomleft", legend=c("Actual","Forecast"), col=c("blue","red"), lwd=2)
-
-
+# Join against the safely aligned GDP set we built in Step 2
+results <- left_join(results, gdp_aligned, by = "YearMonth") %>%
+  select(-YearMonth)
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 8. Evaluation Metrics
 RMSE <- sqrt(mean((results$GDP_FCST - results$GDP)^2, na.rm = TRUE))
 MAE  <- mean(abs(results$GDP_FCST - results$GDP), na.rm = TRUE)
 
-RMSE
-MAE
-
+print(paste("XGBoost Test RMSE:", round(RMSE, 5)))
+print(paste("XGBoost Test MAE:", round(MAE, 5)))
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# I used this to plot comparison of end of quarter day results of DFM and Bridge method
+# 9. Plot Results (Test Set Window)
+plot(results$Date, results$GDP, type="l", col="blue", lwd=2,
+     main="Actual GDP vs XGBoost Forecast", xlab="Date", ylab="GDP")
+lines(results$Date, results$GDP_FCST, col="red", lwd=2)
+legend("bottomleft", legend=c("Actual","Forecast"), col=c("blue","red"), lwd=2)
+
+## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 10. Plot Comparison: DFM (h=0) vs Bridge (h=0) 
 plot(quarterly_fcst$Date, quarterly_fcst$GDP, type="l",
-     col="black", lwd=2,
-     xaxt="n",
-     xlab="",      # remove default label
-     ylim = range(c(
-       quarterly_fcst$GDP,
-       quarterly_fcst$h0_fcst
-     ), na.rm = TRUE),
-     main="Real GDP vs Nowcast (DFM and Bridge)",
+     col="black", lwd=2, xaxt="n", xlab="",      
+     ylim = range(c(quarterly_fcst$GDP, quarterly_fcst$h0_fcst, results$GDP_FCST), na.rm = TRUE),
+     main="Real GDP vs Nowcast (DFM internal vs Bridge)",
      ylab="GDP")
 
 lines(quarterly_fcst$Date, quarterly_fcst$h0_fcst, col = "green",   lwd = 2)
 lines(results$Date, results$GDP_FCST, col="red", lwd=2)
 
 legend("bottomleft",
-       legend=c("Real GDP", "h=0 (internal)", "h=0 (bridge)"),
-       col=c("black","green", "red", "blue"),
-       lwd=2)
+       legend=c("Real GDP", "h=0 (DFM internal)", "h=0 (Bridge)"),
+       col=c("black","green", "red"), lwd=2)
 
-# Add monthly ticks
 axis(1,
      at = quarterly_fcst$Date,
      labels = format(quarterly_fcst$Date, "%b %Y"),
      las = 2)
-
