@@ -7,3 +7,5 @@ rsconnect/
 .Rproj.user
 .Rhistory
 .RData
+*.png
+*.pdf
