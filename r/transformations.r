@@ -433,6 +433,7 @@ test_transform <- function(x, freq = 12, alpha = 0.05) {
   kpss_stationary <- !is.na(kpss_p) && kpss_p > alpha
   # Check "dfgls" - more modern than adf
   # Base decision
+
   if (adf_stationary && kpss_stationary) {
     base <- "none"
   } else if (!adf_stationary && !kpss_stationary) {
@@ -441,6 +442,7 @@ test_transform <- function(x, freq = 12, alpha = 0.05) {
     base <- "detrend"
   } else if (!adf_stationary && kpss_stationary) {
     base <- "diff"
+    message("Disagreement with a bad decision!!!")
   }
   
   # Prefer LOGDIFF if possible
