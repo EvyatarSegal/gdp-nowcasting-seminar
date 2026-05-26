@@ -1,0 +1,1 @@
+library(dfms); df <- readxl::read_excel(" data/clean/combined_monthly_panel_Q_refined.xlsx\); df <- as.Date(df); X_xts <- xts::xts(as.matrix(df[, -1]), order.by = df); dfm_curr <- DFM(X_xts, r=4, p=2, quarterly.vars=\GDP\, em.method=\BM\); x_train <- dfm_curr[5:10, ]; x_train <- data.frame(Date = Sys.Date(), x_train); print(colnames(x_train))

@@ -53,7 +53,7 @@ save_list_to_excel <- function(lst, file_path = "output.xlsx") {
 # path <- "C:/Users/eladb/OneDrive/Desktop/University/Bachelor's/2025 B/Nowcasting/Seminar/data/raw/nowcasting_data_raw.xlsx"
 
 # Hardcoding a path is a bad habit, lets use relative path
-setwd("..")
+
 path <- paste0(getwd(), "/data/raw/nowcasting_data_raw.xlsx", sep = "")
 
 
@@ -193,12 +193,12 @@ head(blocks_real$FX_liqudity$`Foreign exchange reserves (millions of shekels)`)
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Note from Evyatar: Again, lets use relative paths
-setwd("..")
+
 save_list_to_excel(blocks_real, paste0(getwd(), "/data/intermediate/blocks_real.xlsx"))
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-setwd("..")
+
 td <- read_csv("data/raw/td_var.csv")
 td_ts <- ts(
   td[, -1],
@@ -391,12 +391,12 @@ write_sa_info <- function(sa_info, file_path = "sa_info.xlsx") {
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-setwd("..")
+
 write_sa_info(sa_info, "data/intermediate/SA_results_01.xlsx")
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-setwd("..")
+
 save_list_to_excel(blocks_sa, "data/intermediate/blocks_sa_01.xlsx")
 
 
@@ -758,13 +758,13 @@ save_transformation_info <- function(info_list, file_path = "transformation_info
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-setwd("..")
+
 save_transformation_info(transformation_info, "output/TRANSFORMATION_INFO.xlsx")
 
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-setwd("..")
+
 save_list_to_excel(blocks_transformed, "blocks_transformed.xlsx")
 
 
@@ -900,20 +900,20 @@ shift_report$FX_liqudity <- out$report
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-setwd("..")
+
 blocks_shifted_path <- "data/clean/blocks_shifted.xlsx"
 
 save_list_to_excel(blocks_shifted, blocks_shifted_path)
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-setwd("..")
+
 save_transformation_info(shift_report, "output/shift_report.xlsx")
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Input: multi-sheet transformed + lag-adjusted workbook
-setwd("..")
+
 if (!exists("blocks_shifted_path")) {
   blocks_shifted_path <- "data/clean/blocks_shifted.xlsx"
 }

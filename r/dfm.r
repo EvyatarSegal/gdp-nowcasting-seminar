@@ -481,21 +481,23 @@ x_train$month <- as.integer(format(x_train$Date, "%m"))
 x_train <- x_train[x_train$month %in% c(1,4,7,10), ]
 
 
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-y_train <- df[df$Date <= df$Date[309] & !is.na(df$GDP), c("Date", "GDP")]
-
+y_train <- df[!is.na(df$GDP), c("Date", "GDP")]
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-X_mat <- as.matrix(x_train[, c("f1","f2","f3","f4")])
-y_vec <- y_train$GDP
+# Join to ensure exact row match for xgboost
+train_data <- inner_join(x_train, y_train, by = "Date")
 
+# Force standard dataframe to prevent tibble memory layout bug in xgboost
+X_mat <- as.matrix(as.data.frame(train_data)[, c("f1","f2","f3","f4")])
+mode(X_mat) <- "numeric"
+y_vec <- as.numeric(train_data$GDP)
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # 1. Identify the most recent date in training set
-max_date <- max(x_train$Date)
+max_date <- max(train_data$Date)
 
 # 2. Calculate the difference in years between max_date and each row's Date
-time_diff_years <- as.numeric(difftime(max_date, x_train$Date, units = "days")) / 365.25
+time_diff_years <- as.numeric(difftime(max_date, train_data$Date, units = "days")) / 365.25
 
 # 3. Define your decay parameter (lambda)
 ## lambda = 0 means equal weights. Higher lambda means faster decay of older data.
