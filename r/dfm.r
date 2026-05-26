@@ -9,6 +9,7 @@ library(lubridate)
 library(vars)
 library(openxlsx)
 
+
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 df <- read_excel("data/clean/combined_monthly_panel_Q_refined.xlsx")
 
@@ -455,61 +456,38 @@ for (i in seq_along(all_months)) {
 
 
 
-
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 library(xgboost)
 
+## --- Dynamic Factor & Target Alignment (Fixes the Length Mismatch) ---
+
+# 1. Extract estimated factors from the last DFM model
+# (dfm_curr$F_qml matches the rows of df_sub exactly)
+x_factors <- data.frame(Date = df_sub$Date, dfm_curr$F_qml)
+colnames(x_factors) <- c("Date", "f1", "f2", "f3", "f4")
+
+# 2. Dynamically merge factors with the actual GDP target by Date
+# This guarantees that rows are perfectly aligned before filtering
+training_set <- x_factors %>%
+  left_join(df[, c("Date", "GDP")], by = "Date") %>%
+  filter(!is.na(GDP)) # Drop rows where GDP is missing (keeping only quarter ends)
+
+# 3. Separate into clean matrices/vectors for XGBoost
+X_mat <- as.matrix(training_set[, c("f1", "f2", "f3", "f4")])
+y_vec <- training_set$GDP
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# for the training set I am using the factors estimated in the earlier step
-x_train <- dfm_curr$F_qml[5:309, ]
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# since the factors in the "dfm_curr" don't have dates I have to manually adjust it - you should know the dates allingments
-start_date <- as.Date("1995-07-01")
-n <- nrow(x_train)
-
-dates_monthly <- seq(from = start_date, by = "month", length.out = n)
-
-x_train <- data.frame(Date = dates_monthly, x_train)
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# here I only want to use the factors that are from the quarter end rows
-x_train$month <- as.integer(format(x_train$Date, "%m"))
-x_train <- x_train[x_train$month %in% c(1,4,7,10), ]
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-y_train <- df[df$Date <= df$Date[309] & !is.na(df$GDP), c("Date", "GDP")]
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-X_mat <- as.matrix(x_train[, c("f1","f2","f3","f4")])
-y_vec <- y_train$GDP
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# 1. Identify the most recent date in training set
-max_date <- max(x_train$Date)
+# 1. Identify the most recent date in training set dynamically
+max_date <- max(training_set$Date)
 
 # 2. Calculate the difference in years between max_date and each row's Date
-time_diff_years <- as.numeric(difftime(max_date, x_train$Date, units = "days")) / 365.25
+time_diff_years <- as.numeric(difftime(max_date, training_set$Date, units = "days")) / 365.25
 
-# 3. Define your decay parameter (lambda)
-## lambda = 0 means equal weights. Higher lambda means faster decay of older data.
-# lambda <- 0.15 
-# weights_vec <- exp(-lambda * time_diff_years)
-
-# The winning configuration from Rolling-Origin Validation:
-# Function: Sigmoid
-# p1 = 3.968421, p2 = 9.842105
+# 3. Apply your winning Sigmoid configuration weights
 weights_vec <- 1 / (1 + exp(3.968421 * (time_diff_years - 9.842105)))
 
-# Pass the weights vector directly into the DMatrix
+# Pass the perfectly aligned objects into the DMatrix
 dtrain <- xgb.DMatrix(data = X_mat, label = y_vec, weight = weights_vec)
-
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 params <- list(
   objective = "reg:squarederror",
