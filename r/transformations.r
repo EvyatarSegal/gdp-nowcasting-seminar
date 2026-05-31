@@ -419,8 +419,29 @@ test_transform <- function(x, freq = 12, alpha = 0.05) {
     }
   }
   
-  # 2. ADF test
-  adf_p <- tryCatch(adf.test(x_clean)$p.value, error = function(e) NA)
+  
+  # 2. DF-GLS test
+  # DF-GLS is a left-tailed test: Reject Null (Stationary) if Stat < Critical Value
+  dfgls_stationary <- FALSE
+  
+  dfgls_obj <- tryCatch(
+    urca::ur.ers(x_clean, type = "DF-GLS", model = "trend"), 
+    error = function(e) NULL
+  )
+  
+  if (!is.null(dfgls_obj)) {
+    stat <- dfgls_obj@teststat[1]
+    
+    # Map alpha to urca's specific critical value column names
+    pct_label <- switch(as.character(alpha),
+                        "0.01" = "1pct",
+                        "0.05" = "5pct",
+                        "0.1"  = "10pct",
+                        "5pct") # Safe default if alpha is non-standard
+    
+    cval <- dfgls_obj@cval[1, pct_label]
+    dfgls_stationary <- stat < cval
+  }
   
   # 3. KPSS test
   kpss_p <- tryCatch(kpss.test(x_clean)$p.value, error = function(e) NA)
@@ -429,17 +450,15 @@ test_transform <- function(x, freq = 12, alpha = 0.05) {
   positive_only <- all(x_clean > 0)
   
   # 5. Logic
-  adf_stationary <- !is.na(adf_p)  && adf_p < alpha
   kpss_stationary <- !is.na(kpss_p) && kpss_p > alpha
-  # Check "dfgls" - more modern than adf
   # Base decision
-  if (adf_stationary && kpss_stationary) {
+  if (dfgls_stationary && kpss_stationary) {
     base <- "none"
-  } else if (!adf_stationary && !kpss_stationary) {
+  } else if (!dfgls_stationary && !kpss_stationary) {
     base <- "diff"
-  } else if (adf_stationary && !kpss_stationary) {
+  } else if (dfgls_stationary && !kpss_stationary) {
     base <- "detrend"
-  } else if (!adf_stationary && kpss_stationary) {
+  } else if (!dfgls_stationary && kpss_stationary) {
     base <- "diff"
   }
   
