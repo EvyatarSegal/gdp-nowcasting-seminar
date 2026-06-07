@@ -30,7 +30,7 @@ df_clean <- df %>% distinct(Date, .keep_all = TRUE)
 # 2. DYNAMIC TIMELINE & PRE-ALLOCATION
 # ==============================================================================
 end_date   <- max(df$Date, na.rm = TRUE)
-start_date <- end_date - lubridate::years(1) 
+start_date <- end_date - lubridate::years(6)  + months(7)
 test_start_date <- start_date
 
 all_months <- seq(start_date, end_date, by = "month")
@@ -157,39 +157,30 @@ colnames(X_test_mat) <- c("f1","f2","f3", "f4")
 pred_test <- predict(xgb_model, X_test_mat)
 
 # ==============================================================================
-# 6. EVALUATION & PLOTTING
+# 6. EVALUATION & PLOTTING (ROBUST GRAPHICS FIX)
 # ==============================================================================
-results <- data.frame(Date = X_test_factors$Date, GDP_FCST = pred_test)
-results$YM <- format(results$Date, "%Y-%m")
+# 1. Clean up missing values specifically for rendering the lines
+plot_actual   <- results %>% filter(!is.na(GDP))
+plot_forecast <- results %>% filter(!is.na(GDP_FCST))
 
-# FIX: Create the YM column in df_clean on the fly so the join works seamlessly
-df_clean_with_ym <- df_clean %>% 
-  mutate(YM = format(Date, "%Y-%m"))
+# 2. Dynamically calculate a tight, accurate vertical range ignoring NAs safely
+y_min <- min(c(plot_actual$GDP, plot_forecast$GDP_FCST), na.rm = TRUE)
+y_max <- max(c(plot_actual$GDP, plot_forecast$GDP_FCST), na.rm = TRUE)
 
-# Merge via YM to ensure bulletproof alignment with actual GDP
-results <- results %>% 
-  left_join(df_clean_with_ym[, c("YM", "GDP")], by = "YM")
-
-eval_results <- results[!is.na(results$GDP), ]
-
-if(nrow(eval_results) > 0) {
-  RMSE <- sqrt(mean((eval_results$GDP_FCST - eval_results$GDP)^2))
-  MAE  <- mean(abs(eval_results$GDP_FCST - eval_results$GDP))
-  print(paste("XGBoost Bridge RMSE:", round(RMSE, 5)))
-  print(paste("XGBoost Bridge MAE:", round(MAE, 5)))
-} else {
-  print("Warning: No matching actual GDP records found for the forecast evaluation window.")
-}
-
-# Final Output Plot
-plot(results$Date, results$GDP, type="l", col="black", lwd=2,
+# 3. Initialize the base canvas using the forecast line (which has zero NAs)
+plot(plot_forecast$Date, plot_forecast$GDP_FCST, type="l", col="red", lwd=2, lty=2,
      main="Real GDP vs Bridge Model Forecast (XGBoost)",
-     ylab="GDP", xlab="Timeline",
-     ylim = range(c(results$GDP, results$GDP_FCST), na.rm = TRUE))
+     ylab="GDP Growth / Value", xlab="Timeline",
+     ylim = c(y_min, y_max))
 
-lines(results$Date, results$GDP_FCST, col="red", lwd=2, lty=2)
-legend("bottomleft", legend=c("Actual GDP","XGBoost Bridge Forecast"), 
-       col=c("black","red"), lty=c(1,2), lwd=2)
+# 4. Connect the quarterly actual GDP points using a solid black line
+lines(plot_actual$Date, plot_actual$GDP, col="black", lwd=2, lty=1)
 
+# 5. Drop clear physical points directly onto the chart where actual GDP targets sit
+points(plot_actual$Date, plot_actual$GDP, col="black", pch=16, cex=1.2)
+
+# 6. Add the descriptive chart legend
+legend("bottomleft", legend=c("Actual GDP (Quarterly)","XGBoost Bridge Forecast"), 
+       col=c("black","red"), lty=c(1,2), pch=c(16, NA), lwd=2)
 
 
