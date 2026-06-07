@@ -154,11 +154,11 @@ write_forecast_info <- function(results_report, file_path = "output/forecast.xls
   wb <- openxlsx::createWorkbook()
   
   for (bn in names(results_report)) {
-    addWorksheet(wb, bn)
-    writeData(wb, bn, results_report[[bn]])
+    openxlsx::addWorksheet(wb, bn)
+    openxlsx::writeData(wb, bn, results_report[[bn]])
   }
   
-  saveWorkbook(wb, file = file_path, overwrite = TRUE)
+  openxlsx::saveWorkbook(wb, file = file_path, overwrite = TRUE)
 }
 
 
