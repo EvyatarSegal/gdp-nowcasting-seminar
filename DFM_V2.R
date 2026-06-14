@@ -16,7 +16,8 @@ set.seed(2026)
 # Load data and drop completely empty columns
 df <- read_excel("data/clean/combined_monthly_panel_Q_refined_nuran.xlsx") %>%
   dplyr::select(where(~ !all(is.na(.))))
-
+df <- df %>% select(-c('Net import purchase tax', 'Total Income Tax Division Net',
+                       'Companies returns', 'praise tax returns', 'participation rate'))
 
 df$Date <- as.Date(df$Date)
 
