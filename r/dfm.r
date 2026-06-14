@@ -10,7 +10,26 @@ library(vars)
 library(openxlsx)
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+set.seed(2026)
+
+
 df <- read_excel("data/clean/combined_monthly_panel_Q_refined.xlsx")
+df_evyatar <- read_excel("data/clean/combined_monthly_panel_Q_refined.xlsx")
+
+
+# gdp_df <- subset(df, !is.na(df$gdp))
+# GDP_months <- unqiue(month(as.date(gdp_df$Date)))
+# 
+# stop if not length()
+
+
+df_nuran <- read_excel("data/clean/combined_monthly_panel_Q_refined_nuran.xlsx")
+
+df <- df %>%
+  dplyr::select(where(~ !all(is.na(.))))
+
+
 
 df$Date <- as.Date(df$Date)
 
@@ -100,9 +119,9 @@ for (i in seq_along(all_months)) {
   month_i <- month(cutoff)
 
   # set dynamic horizon
-  if (month_i %in% c(1,4,7,10)) {
+  if (month_i %in% c(3,6,9,12)) {
     h_val <- 3
-  } else if (month_i %in% c(2,5,8,11)) {
+  } else if (month_i %in% c(4,7,10,1)) {
     h_val <- 2
   } else {
     h_val <- 1
@@ -145,11 +164,11 @@ write_forecast_info <- function(results_report, file_path = "output/forecast.xls
   wb <- openxlsx::createWorkbook()
   
   for (bn in names(results_report)) {
-    addWorksheet(wb, bn)
-    writeData(wb, bn, results_report[[bn]])
+    openxlsx::addWorksheet(wb, bn)
+    openxlsx::writeData(wb, bn, results_report[[bn]])
   }
   
-  saveWorkbook(wb, file = file_path, overwrite = TRUE)
+  openxlsx::saveWorkbook(wb, file = file_path, overwrite = TRUE)
 }
 
 
@@ -168,10 +187,15 @@ quarterly_fcst <- list()
 results_report$month <- as.integer(format(results_report$Date, "%m"))
 
 # keep only the quarter end results and add the real value of GDP (log-diff)
-quarterly_fcst <- results_report[results_report$month %in% c(1,4,7,10), ]
+quarterly_fcst <- results_report[results_report$month %in% c(3,6,9,12), ]
+
+df <- df %>% 
+  mutate(GDP = lead(GDP, n = 1))
+
 quarterly_fcst <- left_join(quarterly_fcst, df[, c("Date", "GDP")],
                             by = join_by(Date))
-
+quarterly_fcst$Date
+df$Date
 # format dates
 quarterly_fcst$Date <- as.Date(quarterly_fcst$Date)
 
@@ -353,21 +377,40 @@ summary(dfm_curr)
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # --- Load Data ---
 
-df <- read_excel("data/clean/combined_monthly_panel_Q_refined.xlsx")
+df <- read_excel("data/clean/combined_monthly_panel_Q_refined_nuran.xlsx")
+df <- df %>%
+  dplyr::select(where(~ !all(is.na(.))))
 df$Date <- as.Date(df$Date)
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # --- Define rolling dates ---
-start_date <- as.Date("2020-12-01")
-end_date   <- as.Date("2025-01-01")
+start_date <- as.Date("1995-02-01")
+end_date   <- as.Date("2026-05-01")
+
+library(lubridate)
+
+# --- Define DYNAMIC rolling dates ---
+
+# 1. Automatically set the end date to the absolute latest month in your dataset
+end_date <- max(df$Date, na.rm = TRUE)
+
+# 2. Define your out-of-sample testing window. 
+# If you want to keep testing on the most recent ~4 years of data, you can dynamically subtract:
+start_date <- end_date - years(4) 
+# OR just set a new explicit cutoff for testing: start_date <- as.Date("2022-01-01")
+
+all_months <- seq(start_date, end_date, by = "month")
+
+# Print to verify your new timeline
+print(paste("Running rolling forecast from", start_date, "to", end_date))
 
 all_months <- seq(start_date, end_date, by = "month")
 
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # for each factor save the value for the EoQ date
-results_report <- data.frame(
+results_report_empty <- data.frame(
   Date = all_months,
   h0_f1 = NA, h0_f2 = NA, h0_f3 = NA, h0_f4 = NA,
   h1_f1 = NA, h1_f2 = NA, h1_f3 = NA, h1_f4 = NA,
@@ -379,6 +422,19 @@ results_report <- data.frame(
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 all_months <- head(all_months, -1)
 
+# Assuming all_months is already defined
+results_report <- data.frame(
+  Date = all_months,
+  # Factor 1 placeholders
+  h0_f1 = NA, h1_f1 = NA, h2_f1 = NA, h3_f1 = NA,
+  # Factor 2 placeholders
+  h0_f2 = NA, h1_f2 = NA, h2_f2 = NA, h3_f2 = NA,
+  # Factor 3 placeholders
+  h0_f3 = NA, h1_f3 = NA, h2_f3 = NA, h3_f3 = NA,
+  # Factor 4 placeholders
+  h0_f4 = NA, h1_f4 = NA, h2_f4 = NA, h3_f4 = NA
+)
+
 for (i in seq_along(all_months)) {
 
   cutoff <- all_months[i]
@@ -389,6 +445,8 @@ for (i in seq_along(all_months)) {
     h_val <- 3
   } else if (month_i %in% c(2,5,8,11)) {
     h_val <- 2
+  } else if (i == 48) {
+    h_val = -3
   } else {
     h_val <- 1
   }
@@ -458,57 +516,52 @@ for (i in seq_along(all_months)) {
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 library(xgboost)
+library(dplyr)
+library(zoo)
 
+# 1. Sync the XGBoost test window with the DFM loop we defined earlier
+test_start_date <- start_date 
 
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# for the training set I am using the factors estimated in the earlier step
-x_train <- dfm_curr$F_qml[5:309, ]
+# 2. Clean the original dataset to remove duplicate months
+df_clean <- df %>% distinct(Date, .keep_all = TRUE)
 
+# 3. Extract factors and align to the dataset's dates
+all_factors <- data.frame(dfm_curr$F_qml)
+colnames(all_factors) <- c("f1", "f2", "f3", "f4")
+all_factors$Date <- df_sub$Date
 
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# since the factors in the "dfm_curr" don't have dates I have to manually adjust it - you should know the dates allingments
-start_date <- as.Date("1995-07-01")
-n <- nrow(x_train)
+# 4. Prepare Predictors (X) - Keep only target factor months (1, 4, 7, 10)
+x_train_prep <- all_factors %>%
+  filter(as.integer(format(Date, "%m")) %in% c(1, 4, 7, 10)) %>%
+  mutate(Quarter = as.yearqtr(Date)) %>%
+  distinct(Quarter, .keep_all = TRUE) # Ensure exactly 1 factor row per quarter
 
-dates_monthly <- seq(from = start_date, by = "month", length.out = n)
+# 5. Prepare Target (y) - Keep only actual GDP values
+y_train_prep <- df_clean %>%
+  filter(!is.na(GDP)) %>%
+  dplyr::select(Date, GDP) %>%
+  mutate(Quarter = as.yearqtr(Date)) %>%
+  distinct(Quarter, .keep_all = TRUE) # Ensure exactly 1 GDP value per quarter
 
-x_train <- data.frame(Date = dates_monthly, x_train)
+# 6. Join safely by QUARTER and filter dynamically
+train_data <- x_train_prep %>%
+  inner_join(y_train_prep, by = "Quarter", suffix = c("_factor", "_gdp")) %>%
+  # DYNAMIC FILTER: Cuts off right before testing begins to prevent data leakage
+  filter(Date_factor < test_start_date)
 
+# 7. Split into matrix and vector
+X_mat <- as.matrix(train_data[, c("f1", "f2", "f3", "f4")])
+y_vec <- train_data$GDP
 
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# here I only want to use the factors that are from the quarter end rows
-x_train$month <- as.integer(format(x_train$Date, "%m"))
-x_train <- x_train[x_train$month %in% c(1,4,7,10), ]
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-y_train <- df[df$Date <= df$Date[309] & !is.na(df$GDP), c("Date", "GDP")]
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-X_mat <- as.matrix(x_train[, c("f1","f2","f3","f4")])
-y_vec <- y_train$GDP
-
-
-## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# 1. Identify the most recent date in training set
-max_date <- max(x_train$Date)
-
-# 2. Calculate the difference in years between max_date and each row's Date
-time_diff_years <- as.numeric(difftime(max_date, x_train$Date, units = "days")) / 365.25
-
-# 3. Define your decay parameter (lambda)
-## lambda = 0 means equal weights. Higher lambda means faster decay of older data.
-# lambda <- 0.15 
-# weights_vec <- exp(-lambda * time_diff_years)
-
-# The winning configuration from Rolling-Origin Validation:
-# Function: Sigmoid
-# p1 = 3.968421, p2 = 9.842105
+# 8. Recalculate weights based on your rolling origin config
+max_date <- max(train_data$Date_factor)
+time_diff_years <- as.numeric(difftime(max_date, train_data$Date_factor, units = "days")) / 365.25
 weights_vec <- 1 / (1 + exp(3.968421 * (time_diff_years - 9.842105)))
 
-# Pass the weights vector directly into the DMatrix
+# 9. Build the DMatrix safely
 dtrain <- xgb.DMatrix(data = X_mat, label = y_vec, weight = weights_vec)
+
+
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 params <- list(

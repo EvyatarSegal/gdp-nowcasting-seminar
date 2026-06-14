@@ -460,11 +460,15 @@ transformation_recommendations <- blocks_sa[blocks_to_transform] |>
 transformation_recommendations
 
 
-## --------------------------------------------------------------------------------------
-transform_block <- function(block_df, codes_vector, freq = 12) {
+## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+transform_block <- function(block_df,
+                            codes_vector,
+                            hag_ts,
+                            td_ts,
+                            freq = 12,
+                            sa_codes = c(4,5,6,7,8)) {
   
   block_df <- as.data.frame(block_df)
-  
   if (!"Date" %in% names(block_df)) stop("Date column missing.")
   
   vars <- setdiff(names(block_df), "Date")
@@ -477,102 +481,109 @@ transform_block <- function(block_df, codes_vector, freq = 12) {
     
     varname <- vars[i]
     code <- codes_vector[i]
-    x <- out_df[[varname]]
+    x <- out_df[[varname]] 
     n <- length(x)
     
-    # always initialize full-length result
-    result <- rep(NA, n)
+    message("Processing variable: ", varname)
     
-    transformed <- tryCatch({
+    sa_method <- "None"
+    
+    # ---------------------------------------------------
+    # 1. SEASONAL ADJUSTMENT USING seasonal_adjust_block
+    # ---------------------------------------------------
+    
+    if (code %in% sa_codes) {
       
-      if (code == 0) {
-        result <- x
-        result
-        
-      } else if (code == 1) {
-        result <- log(x)
-        result
-        
-      } else if (code == 2) {
-        result[2:n] <- diff(x)
-        result
-        
-      } else if (code == 3) {
-        lx <- log(x)
-        result[2:n] <- diff(lx)
-        result
-        
-      } else if (code == 4) {
-        if (n > freq) result[(freq+1):n] <- x[(freq+1):n] - x[1:(n-freq)]
-        result
-        
-      } else if (code == 5) {
-        if (n > freq) {
-          sd <- x[(freq+1):n] - x[1:(n-freq)]
-          result[(freq+1):n] <- log(sd)
-        }
-        result
-        
-      } else if (code == 6) {
-        if (n > freq+1) {
-          sd <- x[(freq+1):n] - x[1:(n-freq)]
-          result[(freq+2):n] <- diff(sd)
-        }
-        result
-        
-      } else if (code == 7) {
-        if (n > freq+1) {
-          lx <- log(x)
-          ld <- diff(lx)
-          result[(freq+2):n] <- ld[(freq+1):(n-1)] - ld[1:(n-freq-1)]
-        }
-        result
-        
-      } else if (code == 8) {
-        # Identify non-NA segment
-        first_non_na <- min(which(!is.na(x)))
-        last_non_na  <- max(which(!is.na(x)))
-        
-        x_seg <- x[first_non_na:last_non_na]
-        t_seg <- seq_len(length(x_seg))
-        
-        # Detrend only this segment
-        detr <- residuals(lm(x_seg ~ t_seg))
-        
-        # Place back into full result vector
-        result <- rep(NA, n)
-        result[first_non_na:last_non_na] <- detr
-        
-        result
-        
+      sa_res <- seasonal_adjust_block(
+        block_df = data.frame(Date = block_df$Date, x = x),
+        columns = "x",
+        hag_ts = hag_ts,
+        td_ts = td_ts
+      )
+      
+      status <- sa_res$info$status
+      
+      if (status == "OK") {
+        x <- sa_res$data$x
+        sa_method <- "X13"
       } else {
-        stop("Unknown code.")
+        message("X13 failed for ", varname, " → using STL fallback")
+        
+        valid_idx <- which(!is.na(x))
+        if (length(valid_idx) > freq * 2) { # וודוא שיש מספיק נתונים ל-STL
+          first_non_na <- min(valid_idx)
+          last_non_na  <- max(valid_idx)
+          segment <- x[first_non_na:last_non_na]
+          
+          y <- ts(segment, 
+                  start = c(year(block_df$Date[first_non_na]), 
+                            month(block_df$Date[first_non_na])), 
+                  frequency = freq)
+          
+          stl_fit <- tryCatch({ stl(y, s.window = "periodic", robust = TRUE) }, error = function(e) NULL)
+          
+          if (!is.null(stl_fit)) {
+            adj <- as.numeric(y - stl_fit$time.series[, "seasonal"])
+            x_adj <- x
+            x_adj[first_non_na:last_non_na] <- adj
+            x <- x_adj
+            sa_method <- "STL"
+          } else {
+            sa_method <- "Failed"
+          }
+        }
       }
-      
-    }, error = function(e) {
-      warning(paste("Failed", varname, ":", e$message))
-      rep(NA, n)
-    })
-    
-    # FORCE LENGTH TO MATCH
-    if (length(transformed) != n) {
-      tmp <- rep(NA, n)
-      tmp[1:length(transformed)] <- transformed
-      transformed <- tmp
     }
     
-    # assign safely
-    out_df[[varname]] <- transformed
+    # ---------------------------------------------------
+    # 2. APPLY TRANSFORMATION CODE
+    # ---------------------------------------------------
+    
+    result <- rep(NA, n)
+    
+    safe_log <- function(vec) {
+      if (any(vec <= 0, na.rm = TRUE)) {
+        message("Non-positive values found in ", varname, " - using log(x+1) fallback")
+        return(log(vec + 1))
+      }
+      return(log(vec))
+    }
+    
+    if (code == 0) {
+      result <- x
+    } else if (code == 1) {
+      result <- safe_log(x)
+    } else if (code == 2) {
+      result[2:n] <- diff(x)
+    } else if (code == 3) {
+      result[2:n] <- diff(safe_log(x))
+    } else if (code == 4) {
+      result <- x # SA already handled seasonality
+    } else if (code == 5) {
+      result <- safe_log(x)
+    } else if (code == 6) {
+      result[2:n] <- diff(x)
+    } else if (code == 7) {
+      result[2:n] <- diff(safe_log(x))
+    } else if (code == 8) {
+      valid_idx <- which(!is.na(x))
+      if(length(valid_idx) > 0) {
+        first <- min(valid_idx); last <- max(valid_idx)
+        t_seg <- seq_len(last - first + 1)
+        result[first:last] <- residuals(lm(x[first:last] ~ t_seg))
+      }
+    }
+    
+    out_df[[varname]] <- result 
     
     info_list[[varname]] <- data.frame(
       variable = varname,
       code = code,
-      transformation = c(
-        "none","log","diff","logdiff",
-        "seasonal_diff","log_seasonal_diff",
-        "diff_seasonal_diff","logdiff_seasonal_diff",
-        "detrend"
-      )[code + 1],
+      sa_method = sa_method,
+      transformation = c("none","log","diff","logdiff",
+                         "sa_only","sa_log",
+                         "sa_diff","sa_logdiff",
+                         "detrend")[ifelse(is.na(code), 0, code) + 1],
       stringsAsFactors = FALSE
     )
   }
