@@ -17,6 +17,7 @@ set.seed(2026)
 df <- read_excel("data/clean/combined_monthly_panel_Q_refined_nuran.xlsx") %>%
   dplyr::select(where(~ !all(is.na(.))))
 
+
 df$Date <- as.Date(df$Date)
 
 # Shift the GDP column "one up" as requested (places NA at the very end)
@@ -184,3 +185,71 @@ legend("bottomleft", legend=c("Actual GDP (Quarterly)","XGBoost Bridge Forecast"
        col=c("black","red"), lty=c(1,2), pch=c(16, NA), lwd=2)
 
 
+# ==============================================================================
+# 4.1 VISUALIZE XGBOOST TEMPORAL WEIGHTS
+# ==============================================================================
+# Sort the data strictly by date just in case it's out of order before plotting
+weight_df <- data.frame(Date = base_df$Date_factor, Weight = weights_vec)
+weight_df <- weight_df[order(weight_df$Date), ]
+
+# Plot the calculated weights against the timeline to visualize the decay effect
+plot(weight_df$Date, weight_df$Weight, type = "l", col = "blue", lwd = 2,
+     main = "XGBoost Temporal Observation Weights",
+     ylab = "Assigned Weight", 
+     xlab = "Timeline")
+
+# Add gridlines for readability and points to show the actual data density
+grid()
+points(weight_df$Date, weight_df$Weight, col = "blue", pch = 16, cex = 0.8)
+
+# ==============================================================================
+# 6. BUILD RESULTS DATA FRAME WITH ACTUAL & FORECAST
+# ==============================================================================
+results <- results_report
+
+# Merge actual quarterly GDP (aligned to month of release)
+results <- results %>%
+  left_join(df_clean %>% dplyr::select(Date, GDP), by = "Date")
+
+# Add forecast column (initialised with NA)
+results$GDP_FCST <- NA
+
+# Identify rows where all four h0 factors are available (used as input to XGBoost)
+idx_forecast <- which(rowSums(is.na(results[, c("h0_f1","h0_f2","h0_f3","h0_f4")])) == 0)
+results$GDP_FCST[idx_forecast] <- pred_test
+
+# ==============================================================================
+# 7. OUT-OF-SAMPLE ERROR METRICS (RMSE & MAE)
+# ==============================================================================
+oos_results <- results %>%
+  filter(Date >= test_start_date, !is.na(GDP), !is.na(GDP_FCST))
+
+rmse <- sqrt(mean((oos_results$GDP - oos_results$GDP_FCST)^2, na.rm = TRUE))
+mae  <- mean(abs(oos_results$GDP - oos_results$GDP_FCST), na.rm = TRUE)
+
+cat("\n========== Out-of-Sample Forecast Accuracy ==========\n")
+cat(sprintf("RMSE: %.4f\n", rmse))
+cat(sprintf("MAE : %.4f\n", mae))
+cat("=====================================================\n")
+
+# ==============================================================================
+# 8. PLOT ACTUAL VS FORECAST (WITH ERROR METRICS IN TITLE)
+# ==============================================================================
+plot_actual   <- results %>% filter(!is.na(GDP))
+plot_forecast <- results %>% filter(!is.na(GDP_FCST))
+
+y_min <- min(c(plot_actual$GDP, plot_forecast$GDP_FCST), na.rm = TRUE)
+y_max <- max(c(plot_actual$GDP, plot_forecast$GDP_FCST), na.rm = TRUE)
+
+plot(plot_forecast$Date, plot_forecast$GDP_FCST, type = "l", col = "red", lwd = 2, lty = 2,
+     main = paste0("Real GDP vs Bridge Model Forecast (XGBoost)\nRMSE = ", round(rmse, 4),
+                   " | MAE = ", round(mae, 4)),
+     ylab = "GDP Growth / Value", xlab = "Timeline",
+     ylim = c(y_min, y_max))
+
+lines(plot_actual$Date, plot_actual$GDP, col = "black", lwd = 2, lty = 1)
+points(plot_actual$Date, plot_actual$GDP, col = "black", pch = 16, cex = 1.2)
+
+legend("bottomleft",
+       legend = c("Actual GDP (Quarterly)", "XGBoost Bridge Forecast"),
+       col = c("black", "red"), lty = c(1, 2), pch = c(16, NA), lwd = 2)
