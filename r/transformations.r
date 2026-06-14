@@ -1526,7 +1526,7 @@ if (!exists("blocks_shifted_path")) {
 input_path <- blocks_shifted_path
 
 # Output: one-sheet panel for DFM
-output_path <- "C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/combined_monthly_panel_Q_refined.xlsx"
+output_path <- "data/clean/combined_monthly_panel_Q_refined.xlsx"
 
 # Read sheet names, excluding adjusters
 sheets <- readxl::excel_sheets(input_path)
