@@ -50,7 +50,7 @@ save_list_to_excel <- function(lst, file_path = "output.xlsx") {
 
 
 ## --------------------------------------------------------------------------------------
-path <- "C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/nowcasting_data_raw.xlsx"
+path <- "data/raw/nowcasting_data_raw.xlsx"
 
 
 ## --------------------------------------------------------------------------------------
@@ -197,7 +197,7 @@ td_ts <- ts(
   frequency = 12
 )
 
-preadj <- read_excel("C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/data_for_sa/hol_preadj.xlsx") %>%
+preadj <- read_excel("data/raw/hol_preadj.xlsx") %>%
   mutate(date = as.Date(date))
 
 hag_ts <- ts(
@@ -1509,7 +1509,7 @@ target_df$GDP <- c(NA_real_, diff(log(target_df$GDP)))
 blocks_shifted$target <- target_df
 
 # 4. NOW save it
-blocks_shifted_path <- "C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/blocks_shifted.xlsx"
+blocks_shifted_path <- "data/clean/blocks_shifted.xlsx"
 save_list_to_excel(blocks_shifted, blocks_shifted_path)
 
 
@@ -1520,7 +1520,7 @@ save_transformation_info(shift_report, "shift_report.xlsx")
 ## --------------------------------------------------------------------------------------
 # Input: multi-sheet transformed + lag-adjusted workbook
 if (!exists("blocks_shifted_path")) {
-  blocks_shifted_path <- "C:/Users/eladb/OneDrive/Desktop/University/Bachelor's/2025 B/Nowcasting/Seminar/data/lag_adjusted/blocks_shifted.xlsx"
+  blocks_shifted_path <- "data/raw/blocks_shifted.xlsx"
 }
 
 input_path <- blocks_shifted_path
