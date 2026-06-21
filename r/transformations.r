@@ -50,7 +50,7 @@ save_list_to_excel <- function(lst, file_path = "output.xlsx") {
 
 
 ## --------------------------------------------------------------------------------------
-path <- "data/raw/nowcasting_data_raw.xlsx"
+path <- "data/raw/nowcasting_data_raw_new.xlsx"
 
 
 ## --------------------------------------------------------------------------------------
@@ -190,7 +190,7 @@ save_list_to_excel(blocks_real, "blocks_real.xlsx")
 
 
 ## --------------------------------------------------------------------------------------
-td <- read_csv("C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/data_for_sa/td_var.csv")
+td <- read_csv("data/raw/td_var.csv")
 td_ts <- ts(
   td[, -1],
   start = c(year(min(td$date)), month(min(td$date))),
@@ -1526,7 +1526,7 @@ if (!exists("blocks_shifted_path")) {
 input_path <- blocks_shifted_path
 
 # Output: one-sheet panel for DFM
-output_path <- "data/clean/combined_monthly_panel_Q_refined.xlsx"
+output_path <- "data/clean/combined_monthly_panel_Q_refined_new.xlsx"
 
 # Read sheet names, excluding adjusters
 sheets <- readxl::excel_sheets(input_path)
@@ -1576,7 +1576,7 @@ if (length(duplicated_vars) > 0) {
 }
 
 # Join all sheets by Date
-combined_monthly_panel_Q_refined <- purrr::reduce(
+combined_monthly_panel_Q_refined_new <- purrr::reduce(
   blocks,
   dplyr::full_join,
   by = "Date"
@@ -1584,10 +1584,10 @@ combined_monthly_panel_Q_refined <- purrr::reduce(
   dplyr::arrange(Date)
 
 # Drop leading rows until at least 2 variables have observed data
-non_date_cols <- setdiff(names(combined_monthly_panel_Q_refined), "Date")
+non_date_cols <- setdiff(names(combined_monthly_panel_Q_refined_new), "Date")
 
 row_non_missing_count <- rowSums(
-  !is.na(combined_monthly_panel_Q_refined[, non_date_cols, drop = FALSE])
+  !is.na(combined_monthly_panel_Q_refined_new[, non_date_cols, drop = FALSE])
 )
 
 first_valid_row <- which(row_non_missing_count >= 2)[1]
@@ -1596,15 +1596,15 @@ if (is.na(first_valid_row)) {
   stop("No row found with at least 2 non-missing variables.")
 }
 
-combined_monthly_panel_Q_refined <- combined_monthly_panel_Q_refined[
-  first_valid_row:nrow(combined_monthly_panel_Q_refined),
+combined_monthly_panel_Q_refined_new <- combined_monthly_panel_Q_refined_new[
+  first_valid_row:nrow(combined_monthly_panel_Q_refined_new),
 ]
 
-if (!"GDP" %in% names(combined_monthly_panel_Q_refined)) {
+if (!"GDP" %in% names(combined_monthly_panel_Q_refined_new)) {
   stop("GDP was not carried into the unified modeling table.")
 }
 
-gdp_validation <- combined_monthly_panel_Q_refined %>%
+gdp_validation <- combined_monthly_panel_Q_refined_new %>%
   dplyr::select(Date, GDP) %>%
   dplyr::inner_join(
     blocks$target %>%
@@ -1630,7 +1630,7 @@ if (nrow(gdp_mismatch) > 0) {
 
 # Save as one-sheet Excel file
 openxlsx::write.xlsx(
-  combined_monthly_panel_Q_refined,
+  combined_monthly_panel_Q_refined_new,
   file = output_path,
   sheetName = "combined_monthly_panel",
   overwrite = TRUE

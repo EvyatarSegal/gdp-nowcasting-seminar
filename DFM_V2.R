@@ -14,7 +14,7 @@ library(zoo)
 set.seed(2026)
 
 # Load data and drop completely empty columns
-df <- read_excel("data/clean/combined_monthly_panel_Q_refined_nuran.xlsx") %>%
+df <- read_excel("data/clean/combined_monthly_panel_Q_refined_new.xlsx") %>%
   dplyr::select(where(~ !all(is.na(.))))
 
 
@@ -253,3 +253,4 @@ points(plot_actual$Date, plot_actual$GDP, col = "black", pch = 16, cex = 1.2)
 legend("bottomleft",
        legend = c("Actual GDP (Quarterly)", "XGBoost Bridge Forecast"),
        col = c("black", "red"), lty = c(1, 2), pch = c(16, NA), lwd = 2)
+
