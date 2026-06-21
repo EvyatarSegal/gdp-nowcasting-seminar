@@ -50,7 +50,7 @@ save_list_to_excel <- function(lst, file_path = "output.xlsx") {
 
 
 ## --------------------------------------------------------------------------------------
-path <- "data/raw/nowcasting_data_raw.xlsx"
+path <- "data/raw/nowcasting_data_raw_new.xlsx"
 
 
 ## --------------------------------------------------------------------------------------

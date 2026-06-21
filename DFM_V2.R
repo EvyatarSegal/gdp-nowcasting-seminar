@@ -16,7 +16,7 @@ par(mfrow = c(1,1))
 set.seed(2026)
 
 # Load data and drop completely empty columns
-df <- read_excel("data/clean/combined_monthly_panel_Q_refined_nuran.xlsx") %>%
+df <- read_excel("data/clean/combined_monthly_panel_Q_refined.xlsx") %>%
   dplyr::select(where(~ !all(is.na(.))))
 df <- df %>% select(-c('Net import purchase tax', 'Total Income Tax Division Net',
                        'Companies returns', 'praise tax returns', 'participation rate'))
@@ -319,7 +319,7 @@ cat(sprintf("\nFinal nowcast for %s: %.4f\n", results$Date[current_idx], current
 # ==============================================================================
 
 # Read the 'target' sheet – it contains Date and GDP (level)
-target_df <- read_excel("data/raw/nowcasting_data_raw.xlsx", sheet = "target")
+target_df <- read_excel("data/raw/nowcasting_data_raw_new.xlsx", sheet = "target")
 
 # Ensure Date is parsed as Date
 target_df$Date <- as.Date(target_df$Date)
