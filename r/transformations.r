@@ -50,7 +50,7 @@ save_list_to_excel <- function(lst, file_path = "output.xlsx") {
 
 
 ## --------------------------------------------------------------------------------------
-path <- "C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/nowcasting_data_raw.xlsx"
+path <- "data/raw/nowcasting_data_raw.xlsx"
 
 
 ## --------------------------------------------------------------------------------------
@@ -190,14 +190,14 @@ save_list_to_excel(blocks_real, "blocks_real.xlsx")
 
 
 ## --------------------------------------------------------------------------------------
-td <- read_csv("C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/data_for_sa/td_var.csv")
+td <- read_csv("data/raw/td_var.csv")
 td_ts <- ts(
   td[, -1],
   start = c(year(min(td$date)), month(min(td$date))),
   frequency = 12
 )
 
-preadj <- read_excel("C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/data_for_sa/hol_preadj.xlsx") %>%
+preadj <- read_excel("data/raw/hol_preadj.xlsx") %>%
   mutate(date = as.Date(date))
 
 hag_ts <- ts(
@@ -1509,7 +1509,7 @@ target_df$GDP <- c(NA_real_, diff(log(target_df$GDP)))
 blocks_shifted$target <- target_df
 
 # 4. NOW save it
-blocks_shifted_path <- "C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/blocks_shifted.xlsx"
+blocks_shifted_path <- "data/clean/blocks_shifted.xlsx"
 save_list_to_excel(blocks_shifted, blocks_shifted_path)
 
 
@@ -1520,13 +1520,13 @@ save_transformation_info(shift_report, "shift_report.xlsx")
 ## --------------------------------------------------------------------------------------
 # Input: multi-sheet transformed + lag-adjusted workbook
 if (!exists("blocks_shifted_path")) {
-  blocks_shifted_path <- "C:/Users/eladb/OneDrive/Desktop/University/Bachelor's/2025 B/Nowcasting/Seminar/data/lag_adjusted/blocks_shifted.xlsx"
+  blocks_shifted_path <- "data/clean/blocks_shifted.xlsx"
 }
 
 input_path <- blocks_shifted_path
 
 # Output: one-sheet panel for DFM
-output_path <- "C:/Users/noran/OneDrive/מסמכים/סמינר מעשי/PROJ_DFM/PROJ_DFM/combined_monthly_panel_Q_refined.xlsx"
+output_path <- "data/clean/combined_monthly_panel_Q_refined.xlsx"
 
 # Read sheet names, excluding adjusters
 sheets <- readxl::excel_sheets(input_path)
