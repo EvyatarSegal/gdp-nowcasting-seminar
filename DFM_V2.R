@@ -11,6 +11,8 @@ library(xts)
 library(xgboost)
 library(zoo)
 
+while (!is.null(dev.list()))  dev.off()
+par(mfrow = c(1,1))
 set.seed(2026)
 
 # Load data and drop completely empty columns
@@ -22,17 +24,20 @@ df <- df %>% select(-c('Net import purchase tax', 'Total Income Tax Division Net
 df$Date <- as.Date(df$Date)
 
 # 1. Create month-year column
-data$month_year <- format(data$Date, "%Y-%m")
+df$month_year <- format(df$Date, "%Y-%m")
 
 # 2. Aggregate: one row per month-year, average numeric columns
 #    (non-numeric columns like original Date are dropped; month_year stays)
-data_agg <- data %>%
+data_agg <- df %>%
   group_by(month_year) %>%
   summarise(across(where(is.numeric), \(x) mean(x, na.rm = TRUE)), .groups = "drop")
 
+df <- data_agg
 
 # Convert month_year to Date (first day of month)
 df$Date <- as.Date(paste0(df$month_year, "-01"))
+
+
 
 df <- df %>% select(-c(month_year))
 
@@ -269,3 +274,73 @@ points(plot_actual$Date, plot_actual$GDP, col = "black", pch = 16, cex = 1.2)
 legend("bottomleft",
        legend = c("Actual GDP (Quarterly)", "XGBoost Bridge Forecast"),
        col = c("black", "red"), lty = c(1, 2), pch = c(16, NA), lwd = 2)
+
+
+
+# ==============================================================================
+# 9. TRAIN FINAL XGBOOST ON ALL HISTORICAL DATA & NOWCAST CURRENT GDP
+# ==============================================================================
+
+# Extract all rows where both historical factors and shifted GDP exist
+final_train <- results %>%
+  filter(!is.na(GDP) & 
+           !is.na(h0_f1) & !is.na(h0_f2) & !is.na(h0_f3) & !is.na(h0_f4))
+
+# Features and target
+X_all <- as.matrix(final_train[, c("h0_f1", "h0_f2", "h0_f3", "h0_f4")])
+y_all <- final_train$GDP
+
+# Recalculate weights using the full sample, giving more importance to recent data
+max_date_all <- max(final_train$Date)
+time_diff_all <- as.numeric(difftime(max_date_all, final_train$Date, units = "days")) / 365.25
+weights_all   <- as.numeric(1 / (1 + exp(3.968421 * (time_diff_all - 9.842105))))
+
+# Build DMatrix for the final training
+dtrain_final <- xgb.DMatrix(data = X_all, label = y_all, weight = weights_all)
+
+# Train the final model (using the same hyperparameters)
+xgb_model_final <- xgb.train(params = params, data = dtrain_final, nrounds = 300)
+
+# The "current date" is the last month in our results (most recent observation)
+current_idx <- nrow(results)
+current_factors <- as.matrix(results[current_idx, c("h0_f1", "h0_f2", "h0_f3", "h0_f4")])
+
+# Predict GDP for the current date
+current_gdp_nowcast <- predict(xgb_model_final, current_factors)
+
+# Print or store the result
+cat(sprintf("\nFinal nowcast for %s: %.4f\n", results$Date[current_idx], current_gdp_nowcast))
+
+
+
+
+# ==============================================================================
+# 10. LOAD QUARTERLY GDP LEVEL FROM THE TARGET SHEET & COMPUTE LEVEL NOWCAST
+# ==============================================================================
+
+# Read the 'target' sheet – it contains Date and GDP (level)
+target_df <- read_excel("data/raw/nowcasting_data_raw.xlsx", sheet = "target")
+
+# Ensure Date is parsed as Date
+target_df$Date <- as.Date(target_df$Date)
+
+# Get the latest non‑missing GDP level (the most recent official release)
+last_gdp <- target_df %>%
+  filter(!is.na(GDP)) %>%
+  slice_tail(n = 1)
+
+if (nrow(last_gdp) == 0) stop("No GDP level found in the 'target' sheet.")
+
+base_date  <- last_gdp$Date
+base_level <- last_gdp$GDP   # Quarterly GDP level (e.g., in millions)
+
+# The model nowcast is a quarterly growth rate (e.g., -0.0346 = -3.46%)
+# Apply to the base level to get the next quarter's GDP
+nowcast_gdp_level <- base_level * (1 + current_gdp_nowcast)
+
+# Print the results
+cat(sprintf("\nLast official GDP (%s): %.2f\n", base_date, base_level))
+cat(sprintf("Nowcasted quarterly growth: %.4f (%.2f%%)\n",
+            current_gdp_nowcast, current_gdp_nowcast * 100))
+cat(sprintf("Nowcasted GDP level for %s: %.2f\n\n",
+            results$Date[current_idx], nowcast_gdp_level))
