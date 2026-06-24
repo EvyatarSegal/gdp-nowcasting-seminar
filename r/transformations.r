@@ -1639,3 +1639,82 @@ openxlsx::write.xlsx(
 message("Saved: ", output_path)
 
 
+
+
+# =============================================================================
+# DIAGNOSTIC: Check for newly created columns in final objects
+# =============================================================================
+
+cat("\n========== COLUMN COMPARISON ==========\n")
+
+# 1. Compare raw vs transformed blocks (excluding Date and adjusters)
+all_blocks <- names(blocks_raw)
+blocks_to_check <- setdiff(all_blocks, "adjusters")  # adjusters is never transformed
+
+for (b in blocks_to_check) {
+  raw_cols <- sort(setdiff(names(blocks_raw[[b]]), "Date"))
+  
+  # For blocks_transformed (after SA + mathematical transforms)
+  trans_cols <- sort(setdiff(names(blocks_transformed[[b]]), "Date"))
+  
+  # For blocks_shifted (after lags)
+  shift_cols <- sort(setdiff(names(blocks_shifted[[b]]), "Date"))
+  
+  # New columns = in transformed but not in raw
+  new_in_trans <- setdiff(trans_cols, raw_cols)
+  new_in_shift <- setdiff(shift_cols, raw_cols)
+  
+  # Columns that disappeared (should never happen)
+  missing_in_trans <- setdiff(raw_cols, trans_cols)
+  missing_in_shift <- setdiff(raw_cols, shift_cols)
+  
+  if (length(new_in_trans) == 0 && length(new_in_shift) == 0) {
+    cat(sprintf("✓ Block '%s': No new columns.\n", b))
+  } else {
+    if (length(new_in_trans) > 0) {
+      cat(sprintf("⚠ Block '%s' (transformed) has NEW columns: %s\n", 
+                  b, paste(new_in_trans, collapse = ", ")))
+    }
+    if (length(new_in_shift) > 0) {
+      cat(sprintf("⚠ Block '%s' (shifted) has NEW columns: %s\n", 
+                  b, paste(new_in_shift, collapse = ", ")))
+    }
+  }
+  
+  if (length(missing_in_trans) > 0) {
+    cat(sprintf("   (lost columns in transformed: %s)\n", 
+                paste(missing_in_trans, collapse = ", ")))
+  }
+  if (length(missing_in_shift) > 0) {
+    cat(sprintf("   (lost columns in shifted: %s)\n", 
+                paste(missing_in_shift, collapse = ", ")))
+  }
+}
+
+# 2. Check the final combined panel
+if (exists("combined_monthly_panel_Q_refined")) {
+  panel_cols <- sort(setdiff(names(combined_monthly_panel_Q_refined), "Date"))
+  
+  # Gather all original columns from all raw blocks (excluding Date)
+  all_raw_cols <- unique(unlist(lapply(blocks_raw, function(df) 
+    setdiff(names(df), "Date"))))
+  
+  new_in_panel <- setdiff(panel_cols, all_raw_cols)
+  missing_in_panel <- setdiff(all_raw_cols, panel_cols)
+  
+  if (length(new_in_panel) == 0) {
+    cat("✓ Final panel: No new columns.\n")
+  } else {
+    cat(sprintf("⚠ Final panel has NEW columns: %s\n", 
+                paste(new_in_panel, collapse = ", ")))
+  }
+  
+  if (length(missing_in_panel) > 0) {
+    cat(sprintf("   (columns from raw data missing in panel: %s)\n", 
+                paste(missing_in_panel, collapse = ", ")))
+  }
+} else {
+  cat("! Final panel 'combined_monthly_panel_Q_refined' not found.\n")
+}
+
+cat("========================================\n")
