@@ -74,7 +74,7 @@ data <- read_excel("data/clean/combined_monthly_panel_Q_refined.xlsx")
 num <- data[sapply(data, is.numeric)]
 corm <- cor(num, use = "pairwise.complete.obs")
 # Get pairs with |cor| > 0.93 (excluding diagonal)
-high <- which(abs(corm) > 0.93 & lower.tri(corm), arr.ind = TRUE)
+high <- which(abs(corm) > 0.9 & lower.tri(corm), arr.ind = TRUE)
 pairs <- data.frame(
   Var1 = rownames(corm)[high[,1]],
   Var2 = rownames(corm)[high[,2]],
