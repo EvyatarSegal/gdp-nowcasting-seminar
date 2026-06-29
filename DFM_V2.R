@@ -18,7 +18,7 @@ set.seed(2026)
 # Load data and drop completely empty columns
 df <- read_excel("data/clean/combined_monthly_panel_Q_refined.xlsx") %>%
   dplyr::select(where(~ !all(is.na(.))))
-df <- df %>% select(-c('Net import purchase tax', 'Total Income Tax Division Net',
+df <- df %>% dplyr::select(-c('Net import purchase tax', 'Total Income Tax Division Net',
                        'Companies returns', 'praise tax returns', 'participation rate'))
 
 df$Date <- as.Date(df$Date)
@@ -39,7 +39,7 @@ df$Date <- as.Date(paste0(df$month_year, "-01"))
 
 
 
-df <- df %>% select(-c(month_year))
+df <- df %>% dplyr::select(-c(month_year))
 
 # Shift the GDP column "one up" as requested (places NA at the very end)
 df <- df %>% 
@@ -96,7 +96,7 @@ for (i in seq_along(all_months)) {
   
   # Fit DFM
   dfm_curr <- DFM(
-    X = X_xts, r = 4, p = 2,
+    X = X_xts, r = 4, p = 3,
     quarterly.vars = "GDP", em.method = "BM"
   )
   
