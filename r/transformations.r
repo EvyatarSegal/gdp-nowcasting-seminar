@@ -1488,7 +1488,7 @@ head(blocks_transformed$target$GDP)
 
 ## --------------------------------------------------------------------------------------
 block <- blocks_transformed$FX_liqudity # choose your block
-lags <- c(1,0,1) # rep(val, n)
+lags <- c(0,0,0) # rep(val, n)
 
 
 ## --------------------------------------------------------------------------------------
@@ -1497,6 +1497,80 @@ out <- shift_by_vector(block, lags)
 blocks_shifted$FX_liqudity <- out$data
 shift_report$FX_liqudity <- out$report
 
+## --------------------------------------------------------------------------------------
+block <- blocks_transformed$personal_labor_income_taxes 
+lags <- c(rep(1, ncol(block) - 1)) 
+
+out <- shift_by_vector(block, lags)
+blocks_shifted$personal_labor_income_taxes <- out$data
+shift_report$personal_labor_income_taxes <- out$report
+
+## --------------------------------------------------------------------------------------
+block <- blocks_transformed$corporate_business_tax
+lags <- c(rep(1, ncol(block) - 1)) 
+
+out <- shift_by_vector(block, lags)
+blocks_shifted$corporate_business_tax <- out$data
+shift_report$corporate_business_tax <- out$report
+## --------------------------------------------------------------------------------------
+block <- blocks_transformed$consumption_tax
+lags <- c(rep(1, ncol(block) - 1)) 
+
+out <- shift_by_vector(block, lags)
+blocks_shifted$consumption_tax <- out$data
+shift_report$consumption_tax <- out$report
+
+## --------------------------------------------------------------------------------------
+block <- blocks_transformed$import_trade_tax
+lags <- c(rep(1, ncol(block) - 1)) 
+
+out <- shift_by_vector(block, lags)
+blocks_shifted$import_trade_tax <- out$data
+shift_report$import_trade_tax <- out$report
+
+## --------------------------------------------------------------------------------------
+block <- blocks_transformed$real_estate
+lags <- c(rep(1, ncol(block) - 1)) 
+
+out <- shift_by_vector(block, lags)
+blocks_shifted$real_estate <- out$data
+shift_report$real_estate <- out$report
+
+## -------------------------------------------------------------------------------------
+block <- blocks_transformed$real_activity 
+lags <- c(rep(2, ncol(block) - 1))
+
+out <- shift_by_vector(block, lags)
+blocks_shifted$real_activity <- out$data
+shift_report$real_activity <- out$report
+
+## --------------------------------------------------------------------------------------
+block <- blocks_transformed$capital_markets 
+lags <- c(rep(0, ncol(block) - 1))
+
+out <- shift_by_vector(block, lags)
+blocks_shifted$capital_markets <- out$data
+shift_report$capital_markets <- out$report
+
+## --------------------------------------------------------------------------------------
+block <- blocks_transformed$labor
+lags <- c(rep(2, ncol(block) - 1))
+
+out <- shift_by_vector(block, lags)
+blocks_shifted$labor <- out$data
+shift_report$labor <- out$report
+
+
+## --------------------------------------------------------------------------------------
+block <- blocks_transformed$adjusters 
+lags <- c(0,2)
+
+
+## --------------------------------------------------------------------------------------
+out <- shift_by_vector(block, lags)
+
+blocks_shifted$adjusters <- out$data
+shift_report$adjusters <- out$report
 
 ## --------------------------------------------------------------------------------------
 # 1. Take the GDP from the raw data
