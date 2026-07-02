@@ -50,13 +50,13 @@ save_list_to_excel <- function(lst, file_path = "output.xlsx") {
 
 
 ## --------------------------------------------------------------------------------------
-path <- "data/raw/nowcasting_data_raw_new.xlsx"
+path <- "data/raw/nowcasting_data_raw.xlsx"
 
 
 ## --------------------------------------------------------------------------------------
 sheets <- excel_sheets(path)
 
-
+sheets <- sheets[!sheets %in% c("dataupdate")]
 ## --------------------------------------------------------------------------------------
 blocks_raw <- sheets %>% 
   set_names() %>% 
@@ -746,7 +746,7 @@ library(forecast)
 # --- Step 1: Extract and prepare the raw data ---
 # Extract the specific variable from the tax block and filter out NAs
 raw_data <- blocks_real$personal_labor_income_taxes %>%
-  select(Date, `Total Income Tax Division Net`) %>%
+  dplyr::select(Date, `Total Income Tax Division Net`) %>%
   filter(!is.na(`Total Income Tax Division Net`))
 
 # Define the start date dynamically based on the first available observation
@@ -900,7 +900,7 @@ library(tseries)
 
 # --- Step 1: Extract and prepare the raw data ---
 raw_data <- blocks_real$personal_labor_income_taxes %>%
-  select(Date, `Independents advances`) %>%
+  dplyr::select(Date, `Independents advances`) %>%
   filter(!is.na(`Independents advances`))
 
 start_year <- as.numeric(format(min(raw_data$Date), "%Y"))
@@ -1029,7 +1029,7 @@ library(tseries)
 
 # --- Step 1: Extract and prepare the raw data ---
 raw_data <- blocks_real$personal_labor_income_taxes %>%
-  select(Date, `Independents advances`) %>%
+  dplyr::select(Date, `Independents advances`) %>%
   filter(!is.na(`Independents advances`))
 
 start_year <- as.numeric(format(min(raw_data$Date), "%Y"))
@@ -1432,150 +1432,224 @@ plot.ts(blocks_transformed$FX_liqudity)
 
 
 ## --------------------------------------------------------------------------------------
-shift_by_vector <- function(df, vec) {
+#shift_by_vector <- function(df, vec) {
   # df: data.frame where the first column is 'Date'
   # vec: numeric vector of lags, matching columns 2..n of df
   
   # Sanity check
-  if (length(vec) != (ncol(df) - 1)) {
-    stop("Length of vec must match number of data columns (excluding Date).")
-  }
+#  if (length(vec) != (ncol(df) - 1)) {
+#    stop("Length of vec must match number of data columns (excluding Date).")
+#  }
   
-  df_shifted <- df
+#  df_shifted <- df
   
   # Prepare the report
-  report <- data.frame(
-    variable = colnames(df)[-1],
-    lag_applied = vec,
-    stringsAsFactors = FALSE
-  )
+#  report <- data.frame(
+#    variable = colnames(df)[-1],
+#    lag_applied = vec,
+#    stringsAsFactors = FALSE
+#  )
   
   # Apply shifts
-  for (i in seq_along(vec)) {
-    k <- vec[i]
-    var <- colnames(df)[i + 1]   # +1 to skip Date
+#  for (i in seq_along(vec)) {
+#    k <- vec[i]
+#    var <- colnames(df)[i + 1]   # +1 to skip Date
     
-    if (!is.numeric(df[[var]])) {
-      warning(paste("Column", var, "is not numeric — skipped."))
-      next
-    }
+#    if (!is.numeric(df[[var]])) {
+#      warning(paste("Column", var, "is not numeric — skipped."))
+#      next
+#    }
     
-    if (k > 0) {
+#    if (k > 0) {
       # Shift forward: NA at the top, drop the last k values
-      df_shifted[[var]] <- c(rep(NA, k), df[[var]][1:(nrow(df) - k)])
-    } else {
+#      df_shifted[[var]] <- c(rep(NA, k), df[[var]][1:(nrow(df) - k)])
+#    } else {
       # k == 0: no change
-      df_shifted[[var]] <- df[[var]]
-    }
-  }
+#      df_shifted[[var]] <- df[[var]]
+#    }
+#  }
   
-  return(list(
-    data = df_shifted,
-    report = report
-  ))
-}
+#  return(list(
+#    data = df_shifted,
+#    report = report
+#  ))
+#}
 
 
 ## --------------------------------------------------------------------------------------
-blocks_shifted <- blocks_transformed
-shift_report <- list()
+#blocks_shifted <- blocks_transformed
+#shift_report <- list()
 #View(blocks_transformed$FX_liqudity)
 
 
 ## --------------------------------------------------------------------------------------
-head(blocks_transformed$target$GDP)
+#head(blocks_transformed$target$GDP)
 
 
 ## --------------------------------------------------------------------------------------
-block <- blocks_transformed$FX_liqudity # choose your block
-lags <- c(0,0,0) # rep(val, n)
+#block <- blocks_transformed$FX_liqudity # choose your block
+#lags <- c(0,0,0) # rep(val, n)
 
 
 ## --------------------------------------------------------------------------------------
-out <- shift_by_vector(block, lags)
+#out <- shift_by_vector(block, lags)
 
-blocks_shifted$FX_liqudity <- out$data
-shift_report$FX_liqudity <- out$report
-
-## --------------------------------------------------------------------------------------
-block <- blocks_transformed$personal_labor_income_taxes 
-lags <- c(rep(1, ncol(block) - 1)) 
-
-out <- shift_by_vector(block, lags)
-blocks_shifted$personal_labor_income_taxes <- out$data
-shift_report$personal_labor_income_taxes <- out$report
+#blocks_shifted$FX_liqudity <- out$data
+#shift_report$FX_liqudity <- out$report
 
 ## --------------------------------------------------------------------------------------
-block <- blocks_transformed$corporate_business_tax
-lags <- c(rep(1, ncol(block) - 1)) 
+#block <- blocks_transformed$personal_labor_income_taxes 
+#lags <- c(rep(1, ncol(block) - 1)) 
 
-out <- shift_by_vector(block, lags)
-blocks_shifted$corporate_business_tax <- out$data
-shift_report$corporate_business_tax <- out$report
-## --------------------------------------------------------------------------------------
-block <- blocks_transformed$consumption_tax
-lags <- c(rep(1, ncol(block) - 1)) 
-
-out <- shift_by_vector(block, lags)
-blocks_shifted$consumption_tax <- out$data
-shift_report$consumption_tax <- out$report
+#out <- shift_by_vector(block, lags)
+#blocks_shifted$personal_labor_income_taxes <- out$data
+#shift_report$personal_labor_income_taxes <- out$report
 
 ## --------------------------------------------------------------------------------------
-block <- blocks_transformed$import_trade_tax
-lags <- c(rep(1, ncol(block) - 1)) 
+#block <- blocks_transformed$corporate_business_tax
+#lags <- c(rep(1, ncol(block) - 1)) 
 
-out <- shift_by_vector(block, lags)
-blocks_shifted$import_trade_tax <- out$data
-shift_report$import_trade_tax <- out$report
+#out <- shift_by_vector(block, lags)
+#blocks_shifted$corporate_business_tax <- out$data
+#shift_report$corporate_business_tax <- out$report
+## --------------------------------------------------------------------------------------
+#block <- blocks_transformed$consumption_tax
+#lags <- c(rep(1, ncol(block) - 1)) 
+
+#out <- shift_by_vector(block, lags)
+#blocks_shifted$consumption_tax <- out$data
+#shift_report$consumption_tax <- out$report
 
 ## --------------------------------------------------------------------------------------
-block <- blocks_transformed$real_estate
-lags <- c(rep(1, ncol(block) - 1)) 
+#block <- blocks_transformed$import_trade_tax
+#lags <- c(rep(1, ncol(block) - 1)) 
 
-out <- shift_by_vector(block, lags)
-blocks_shifted$real_estate <- out$data
-shift_report$real_estate <- out$report
+#out <- shift_by_vector(block, lags)
+#blocks_shifted$import_trade_tax <- out$data
+#shift_report$import_trade_tax <- out$report
+
+## --------------------------------------------------------------------------------------
+#block <- blocks_transformed$real_estate
+#lags <- c(rep(1, ncol(block) - 1)) 
+
+#out <- shift_by_vector(block, lags)
+#blocks_shifted$real_estate <- out$data
+#shift_report$real_estate <- out$report
 
 ## -------------------------------------------------------------------------------------
-block <- blocks_transformed$real_activity 
-lags <- c(rep(2, ncol(block) - 1))
+#block <- blocks_transformed$real_activity 
+#lags <- c(rep(2, ncol(block) - 1))
 
-out <- shift_by_vector(block, lags)
-blocks_shifted$real_activity <- out$data
-shift_report$real_activity <- out$report
-
-## --------------------------------------------------------------------------------------
-block <- blocks_transformed$capital_markets 
-lags <- c(rep(0, ncol(block) - 1))
-
-out <- shift_by_vector(block, lags)
-blocks_shifted$capital_markets <- out$data
-shift_report$capital_markets <- out$report
+#out <- shift_by_vector(block, lags)
+#blocks_shifted$real_activity <- out$data
+#shift_report$real_activity <- out$report
 
 ## --------------------------------------------------------------------------------------
-block <- blocks_transformed$labor
-lags <- c(rep(2, ncol(block) - 1))
+#block <- blocks_transformed$capital_markets 
+#lags <- c(rep(0, ncol(block) - 1))
 
-out <- shift_by_vector(block, lags)
-blocks_shifted$labor <- out$data
-shift_report$labor <- out$report
-
+#out <- shift_by_vector(block, lags)
+#blocks_shifted$capital_markets <- out$data
+#shift_report$capital_markets <- out$report
 
 ## --------------------------------------------------------------------------------------
-block <- blocks_transformed$adjusters 
-lags <- c(0,2)
+#block <- blocks_transformed$labor
+#lags <- c(rep(2, ncol(block) - 1))
+
+#out <- shift_by_vector(block, lags)
+#blocks_shifted$labor <- out$data
+#shift_report$labor <- out$report
 
 
 ## --------------------------------------------------------------------------------------
-out <- shift_by_vector(block, lags)
+#block <- blocks_transformed$adjusters 
+#lags <- c(0,2)
 
-blocks_shifted$adjusters <- out$data
-shift_report$adjusters <- out$report
+
+## --------------------------------------------------------------------------------------
+#out <- shift_by_vector(block, lags)
+
+#blocks_shifted$adjusters <- out$data
+#shift_report$adjusters <- out$report
+
+apply_paper_methodology_shifts <- function(blocks_transformed_list, raw_file_path) {
+  # -------------------------------------------------------------------------
+  # 1. READ LAG RULES
+  # Read the publication lag metadata from the 'dataupdate' sheet.
+  # This sheet contains the rules (e.g., "1month lag", "month+20 days lag").
+  # -------------------------------------------------------------------------
+  lag_rules <- readxl::read_excel(raw_file_path, sheet = "dataupdate")
+  colnames(lag_rules) <- c("block_name", "lag_description")
+  
+  # -------------------------------------------------------------------------
+  # 2. MAP TEXT TO SHIFT VALUES (BASED ON PAPER METHODOLOGY)
+  # Convert the textual descriptions into numeric shifts (Push) based on the 
+  # real-time forecasting rules:
+  # - < 30 days lag -> push 1 month
+  # - 30 to 60 days lag -> push 2 months
+  # - > 60 days lag -> push 3 months
+  # -------------------------------------------------------------------------
+  lag_rules <- lag_rules %>%
+    mutate(
+      push_months = case_when(
+        # Rule A: Daily or immediately known data -> available same month (Push = 0)
+        grepl("known|daily", lag_description, ignore.case = TRUE) ~ 0,
+        
+        # Rule B: Lag of 1 month + additional days (e.g., "month+15", "month+20").
+        # Total lag is ~45-50 days. By the paper's rule (>30 and <=60), we push 2 months.
+        grepl("month\\+", lag_description, ignore.case = TRUE) ~ 1,
+        
+        # Rule C: Lag of exactly 1 month (<=30 days). We push 1 month.
+        grepl("1month", lag_description, ignore.case = TRUE) ~ 1,
+        
+        # Default fallback if rule is not recognized
+        TRUE ~ 1 
+      )
+    )
+  
+  # -------------------------------------------------------------------------
+  # 3. APPLY SHIFTS TO THE DATA
+  # Iterate over all blocks and apply the calculated shift to create the 
+  # "Release-Date Aligned" dataset.
+  # -------------------------------------------------------------------------
+  blocks_shifted <- blocks_transformed_list
+  
+  for (block in names(blocks_transformed_list)) {
+    # Skip the target (GDP) and adjusters (like CPI/VAT rates) from shifting.
+    # Target variable must remain anchored to its reference quarter.
+    if (block %in% c("target", "adjusters")) next 
+    
+    # Extract the required push value (k) for the current block
+    k <- lag_rules %>% filter(block_name == block) %>% pull(push_months)
+    
+    # If the block is somehow missing from the update table, default to 1 month
+    if (length(k) == 0) k <- 1
+    
+    df <- blocks_transformed_list[[block]]
+    
+    # Apply the shift only if k > 0
+    if (k > 0) {
+      df_shifted <- df
+      for (col in setdiff(names(df), "Date")) {
+        # Shift data forward: prepend 'k' NAs and drop the last 'k' observations
+        df_shifted[[col]] <- c(rep(NA_real_, k), head(df[[col]], -k))
+      }
+      blocks_shifted[[block]] <- df_shifted
+      cat(sprintf("✓ Block '%s': History shifted forward by %d month(s) (Release Alignment)\n", block, k))
+    } else {
+      cat(sprintf("✓ Block '%s': Kept in place (Lag = 0)\n", block))
+    }
+  }
+  
+  return(blocks_shifted)
+}
+
+blocks_shifted <- apply_paper_methodology_shifts(blocks_transformed, "data/raw/nowcasting_data_raw.xlsx")
+
 
 ## --------------------------------------------------------------------------------------
 # 1. Take the GDP from the raw data
-target_df <- as.data.frame(blocks_raw$target)
-
+target_df <- as.data.frame(blocks_raw$target)                          
 # 2. Transform it (The Fix)
 target_df$GDP <- c(NA_real_, diff(log(target_df$GDP)))
 
