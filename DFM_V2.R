@@ -1,5 +1,3 @@
-
-
 # ==============================================================================
 # 1. SETUP & DATA LOADING
 # ==============================================================================
@@ -19,7 +17,7 @@ set.seed(2026)
 df <- read_excel("data/clean/combined_monthly_panel_Q_refined.xlsx") %>%
   dplyr::select(where(~ !all(is.na(.))))
 df <- df %>% dplyr::select(-c('Net import purchase tax', 'Total Income Tax Division Net',
-                       'Companies returns', 'praise tax returns', 'participation rate'))
+                              'Companies returns', 'praise tax returns', 'participation rate'))
 
 df$Date <- as.Date(df$Date)
 
@@ -47,6 +45,99 @@ df <- df %>%
 
 # Clean the dataset for later merging
 df_clean <- df %>% distinct(Date, .keep_all = TRUE)
+
+# ==============================================================================
+# 1.5 HYPERPARAMETER OPTIMIZATION (r and p)
+# ==============================================================================
+# ==============================================================================
+# ROBUST HYPERPARAMETER SEARCH
+# ==============================================================================
+r_range <- 1:8 # Keep this tight to avoid convergence issues
+p_range <- 1:6
+grid <- expand.grid(r = r_range, p = p_range)
+grid$BIC <- NA
+
+# Get T (number of observations)
+T_obs <- nrow(X_xts)
+N_vars <- ncol(X_xts)
+
+for(i in 1:nrow(grid)){
+  r_val <- grid$r[i]
+  p_val <- grid$p[i]
+  
+  # Run without tryCatch first to see the error if it crashes
+  model_temp <- DFM(X_xts, r = r_val, p = p_val, em.method = "BM")
+  
+  # Extract LogLikelihood (Check 'names(model_temp)' if this returns NULL)
+  # Commonly 'dfms' stores loglik in 'logLik' or 'loglik'
+  L <- logLik(model_temp) 
+  
+  # Calculate parameters
+  k <- (N_vars * r_val) + (r_val^2 * p_val) + (r_val^2)
+  
+  # Compute BIC
+  grid$BIC[i] <- -2 * L + k * log(T_obs)
+  
+  cat(sprintf("Tested r=%d, p=%d: BIC=%.2f\n", r_val, p_val, grid$BIC[i]))
+}
+
+# Find the best
+optimal <- grid[which.min(grid$BIC), ]
+cat(sprintf("\nOptimal Configuration: r=%d, p=%d\n", optimal$r, optimal$p))
+
+# 1. Table for your report
+library(knitr)
+print(kable(grid, format = "simple", caption = "BIC Selection Table"))
+
+# 2. Heatmap to visualize the BIC surface
+library(ggplot2)
+ggplot(grid, aes(x = factor(p), y = factor(r), fill = BIC)) +
+  geom_tile() +
+  scale_fill_gradient(low = "steelblue", high = "white") +
+  geom_text(aes(label = round(BIC, 0)), color = "black") + # Adds numbers to the tiles
+  labs(title = "BIC Optimization Surface: Finding the Ideal Model",
+       x = "Number of Lags (p)",
+       y = "Number of Factors (r)",
+       fill = "BIC Score") +
+  theme_minimal()
+
+library(ggplot2)
+
+# Ensure p is treated as a factor for distinct lines
+grid$p_factor <- as.factor(grid$p)
+
+# Create the Elbow Plot
+ggplot(grid, aes(x = r, y = BIC, color = p_factor, group = p_factor)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  labs(title = "Elbow Plot for BIC Selection",
+       subtitle = "Look for the point where the BIC curve begins to flatten",
+       x = "Number of Factors (r)",
+       y = "BIC Value",
+       color = "Number of Lags (p)") +
+  theme(legend.position = "right") +
+  # Optional: Adds a dashed line to show the visual 'elbow' if you decide on one
+  geom_vline(xintercept = 3, linetype = "dashed", color = "grey50")
+
+library(ggplot2)
+
+# Ensure r is treated as a factor for the legend
+grid$r_factor <- as.factor(grid$r)
+
+ggplot(grid, aes(x = p, y = BIC, color = r_factor, group = r_factor)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  labs(title = "BIC Sensitivity to Lag Structure",
+       subtitle = "Checking for parallel trends across factor counts",
+       x = "Number of Lags (p)",
+       y = "BIC Value",
+       color = "Number of Factors (r)") +
+  theme(legend.position = "right")
+
+
+
 
 # ==============================================================================
 # 2. DYNAMIC TIMELINE & PRE-ALLOCATION
