@@ -8,6 +8,7 @@ library(lubridate)
 library(xts)
 library(xgboost)
 library(zoo)
+library(vars)
 
 while (!is.null(dev.list()))  dev.off()
 par(mfrow = c(1,1))
@@ -159,6 +160,43 @@ for (h in 0:3) {
     results_report[[col_name]] <- NA_real_
   }
 }
+
+# xts type for dfms methods
+xts_Q <- xts(
+  x = as.matrix(df[ , !(names(df) == "Date") ]),
+  order.by = df$Date
+)
+
+
+# create empty list to save results
+ICr_report <- list()
+
+
+## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# run ICr on xts file with Q variables
+ICr_report <-ICr(xts_Q)
+
+
+## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 3 different methods to select the number of factors
+print(ICr_report)
+# a "knee" like shape marks the ideal point
+plot(ICr_report)
+# PCA report
+screeplot(ICr_report)
+
+
+## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                     1:4 is for 4 factors, 1:2 is 2 factors...
+var_q <- VARselect(ICr_report$F_pca[, 1:4])
+var_q
+
+
+## ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+plot(var_q$criteria["AIC(n)",])
+plot(var_q$criteria["HQ(n)",])
+plot(var_q$criteria["SC(n)",])
+plot(var_q$criteria["FPE(n)",])
 
 # ==============================================================================
 # 3. DYNAMIC FACTOR MODEL (DFM) ROLLING LOOP
