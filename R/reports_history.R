@@ -52,11 +52,15 @@ if (exists("blocks_shifted")) {
 # ==============================================================================
 # 12. HISTORICAL DYNAMIC ATTRIBUTION SYSTEM (TIME-SERIES NEWS)
 # ==============================================================================
-cat("\n[1/3] Extracting aligned historical factor matrices...\n")
+cat("\n[1/3] Extracting aligned historical factor matrices (Quarterly Only)...\n")
 
-# Isolate historical periods where factors and actual inputs exist
+# Isolate historical periods, ensure factors exist, and FILTER for End-of-Quarter months
 historical_timeline <- results %>%
-  filter(!is.na(h0_f1) & !is.na(h0_f2) & !is.na(h0_f3) & !is.na(h0_f4))
+  filter(!is.na(h0_f1) & !is.na(h0_f2) & !is.na(h0_f3) & !is.na(h0_f4)) %>%
+  # Extract the month number and keep only March (3), June (6), September (9), December (12)
+  mutate(Month = as.numeric(format(as.Date(Date), "%m"))) %>%
+  filter(Month %in% c(3, 6, 9, 12)) %>%
+  dplyr::select(-Month) # Remove the temporary Month column
 
 # Convert features into a clean matrix matching the exact training column names
 X_historical_factors <- as.matrix(historical_timeline[, c("h0_f1", "h0_f2", "h0_f3", "h0_f4")])
@@ -127,7 +131,7 @@ historical_sector_df <- historical_news_df %>%
   summarise(Sector_Impact = sum(Impact, na.rm = TRUE), .groups = "drop")
 
 # ==============================================================================
-# 13. TIME-SERIES VISUALIZATIONS & EXECUTIVE REPORTING (EXCEL UPGRADE)
+# 13. TIME-SERIES VISUALIZATIONS & EXECUTIVE REPORTING (EXCEL GEN)
 # ==============================================================================
 cat("[3/3] Generating visual tracking dashboards and baking Executive Excel...\n")
 
@@ -136,7 +140,7 @@ cat("[3/3] Generating visual tracking dashboards and baking Executive Excel...\n
 # For Variables: Add Absolute Impact, Percentages, and Relative Share per Month
 historical_news_enhanced <- historical_news_df %>%
   mutate(
-    Impact_Pct = Impact, # GDP growth is already a decimal/rate
+    Impact_Pct = Impact, 
     Abs_Impact = abs(Impact)
   ) %>%
   group_by(Date) %>%
@@ -168,7 +172,8 @@ historical_sector_enhanced <- historical_sector_df %>%
 p_historical_heatmap <- ggplot(historical_news_df, aes(x = Date, y = Variable, fill = Impact)) +
   geom_tile() +
   scale_fill_gradient2(low = "#B91C1C", mid = "white", high = "#15803D", midpoint = 0, 
-                       name = "GDP Growth Impact") +
+                       name = "GDP Growth Impact", 
+                       guide = guide_colorbar(barwidth = 18, barheight = 0.6, title.position = "top", title.hjust = 0.5)) +
   theme_minimal() +
   theme(
     axis.text.y = element_text(size = 5),
@@ -176,14 +181,14 @@ p_historical_heatmap <- ggplot(historical_news_df, aes(x = Date, y = Variable, f
     legend.position = "bottom"
   ) +
   labs(
-    title = "Macro Feature Importance Trajectory",
+    title = "Macro Feature Importance Trajectory (Quarterly)",
     subtitle = "Tracking specific variables driving the GDP nowcast (2021-2026)",
     x = "Timeline", y = "Predictor Variables"
   )
 
 # 2. Stacked Bar Chart of Structural Sector Contributions
 p_historical_bar <- ggplot(historical_sector_df, aes(x = Date, y = Sector_Impact, fill = Sector)) +
-  geom_col(width = 20, alpha = 0.85) + 
+  geom_col(width = 25, alpha = 0.85) + # Widened columns slightly for quarterly spacing
   geom_hline(yintercept = 0, color = "black", linetype = "solid", size = 0.6) +
   theme_minimal() +
   theme(
@@ -193,7 +198,7 @@ p_historical_bar <- ggplot(historical_sector_df, aes(x = Date, y = Sector_Impact
     plot.subtitle = element_text(size = 10, color = "gray30")
   ) +
   labs(
-    title = "Historical GDP Growth Structural Breakdown",
+    title = "Historical GDP Growth Structural Breakdown (Quarterly)",
     subtitle = "Net structural contribution of macro sectors (Positives stack up, Negatives stack down)",
     x = "Timeline", y = "Contribution to Quarterly Growth Rate",
     fill = "Macro Sector"
@@ -214,7 +219,7 @@ library(openxlsx)
 
 wb <- createWorkbook()
 
-# Define Professional Styles (Matching Executive Report Blueprint)
+# Define Professional Styles
 header_style <- createStyle(
   fontName = "Segoe UI", fontSize = 11, fontColour = "#FFFFFF", fgFill = "#333333",
   halign = "left", valign = "center", textDecoration = "bold",
@@ -227,36 +232,36 @@ pct_style_2dec  <- createStyle(fontName = "Segoe UI", fontSize = 10, numFmt = "0
 date_style      <- createStyle(fontName = "Segoe UI", fontSize = 10, numFmt = "yyyy-mm-dd", halign = "center")
 
 # ------------------------------------------------------------------------------
-# SHEET 1: Variable_Impact
+# SHEET 1: Variable_Impact (Data + Heatmap)
 # ------------------------------------------------------------------------------
 addWorksheet(wb, "Variable_Impact")
 writeData(wb, "Variable_Impact", historical_news_enhanced, startRow = 1, startCol = 1)
 
-# Apply Styles to Sheet 1 (Fixed: using addWorksheet and addStyle for headers)
+# Apply Styles to Sheet 1
 addStyle(wb, "Variable_Impact", style = header_style, rows = 1, cols = 1:6, gridExpand = TRUE)
 addStyle(wb, "Variable_Impact", style = date_style, rows = 2:(nrow(historical_news_enhanced)+1), cols = 1, gridExpand = TRUE)
 addStyle(wb, "Variable_Impact", style = data_style_left, rows = 2:(nrow(historical_news_enhanced)+1), cols = 2:3, gridExpand = TRUE)
 addStyle(wb, "Variable_Impact", style = num_style_4dec, rows = 2:(nrow(historical_news_enhanced)+1), cols = 4, gridExpand = TRUE)
 addStyle(wb, "Variable_Impact", style = pct_style_2dec, rows = 2:(nrow(historical_news_enhanced)+1), cols = 5:6, gridExpand = TRUE)
 
-# Set Column Widths and Insert Heatmap Image (Muted to Column H to give breathing room)
+# Set Column Widths and Insert Heatmap Image
 setColWidths(wb, "Variable_Impact", cols = 1:6, widths = c(13, 30, 28, 15, 15, 18))
 insertImage(wb, "Variable_Impact", temp_img1, startCol = 8, startRow = 2, width = 11, height = 7.5)
 
 # ------------------------------------------------------------------------------
-# SHEET 2: Sector_Impact
+# SHEET 2: Sector_Impact (Data + Stacked Bar Chart)
 # ------------------------------------------------------------------------------
 addWorksheet(wb, "Sector_Impact")
 writeData(wb, "Sector_Impact", historical_sector_enhanced, startRow = 1, startCol = 1)
 
-# Apply Styles to Sheet 2 (Fixed: using addStyle for headers)
+# Apply Styles to Sheet 2
 addStyle(wb, "Sector_Impact", style = header_style, rows = 1, cols = 1:5, gridExpand = TRUE)
 addStyle(wb, "Sector_Impact", style = date_style, rows = 2:(nrow(historical_sector_enhanced)+1), cols = 1, gridExpand = TRUE)
 addStyle(wb, "Sector_Impact", style = data_style_left, rows = 2:(nrow(historical_sector_enhanced)+1), cols = 2, gridExpand = TRUE)
 addStyle(wb, "Sector_Impact", style = num_style_4dec, rows = 2:(nrow(historical_sector_enhanced)+1), cols = 3, gridExpand = TRUE)
 addStyle(wb, "Sector_Impact", style = pct_style_2dec, rows = 2:(nrow(historical_sector_enhanced)+1), cols = 4:5, gridExpand = TRUE)
 
-# Set Column Widths and Insert Stacked Bar Image (Muted to Column G)
+# Set Column Widths and Insert Stacked Bar Image
 setColWidths(wb, "Sector_Impact", cols = 1:5, widths = c(13, 28, 15, 15, 18))
 insertImage(wb, "Sector_Impact", temp_img2, startCol = 7, startRow = 2, width = 11, height = 6.5)
 
@@ -271,6 +276,6 @@ saveWorkbook(wb, output_excel_path, overwrite = TRUE)
 unlink(c(temp_img1, temp_img2))
 
 cat("======================================================================\n")
-cat("✓ SUCCESS: Executive-grade historical workbook built successfully.\n")
-cat(sprintf("File saved with formal formatting and live plots at: %s\n", output_excel_path))
+cat("✓ SUCCESS: Historical structural attribution run completed successfully.\n")
+cat(sprintf("Quarterly-only Excel workbook generated at: %s\n", output_excel_path))
 cat("======================================================================\n")
