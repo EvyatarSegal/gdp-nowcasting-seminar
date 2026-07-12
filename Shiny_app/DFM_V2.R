@@ -25,7 +25,7 @@ if (!exists("df")) {
 } else {
   df <- df %>% dplyr::select(where(~ !all(is.na(.))))
 }
-df <- df %>% select(-any_of(c('Net import purchase tax', 'Total Income Tax Division Net',
+df <- df %>% dplyr::select(-any_of(c('Net import purchase tax', 'Total Income Tax Division Net',
                        'Companies returns', 'praise tax returns', 'participation rate')))
 
 df$Date <- as.Date(df$Date)
@@ -46,7 +46,7 @@ df$Date <- as.Date(paste0(df$month_year, "-01"))
 
 
 
-df <- df %>% select(-c(month_year))
+df <- df %>% dplyr::select(-c(month_year))
 
 # Shift the GDP column "one up" as requested (places NA at the very end)
 df <- df %>% 
