@@ -52,8 +52,7 @@ save_list_to_excel <- function(lst, file_path = "output.xlsx") {
 if (!exists("is_shiny")) is_shiny <- FALSE
 
 ## --------------------------------------------------------------------------------------
-path <- "data/raw/nowcasting_data_raw.xlsx"
-## --------------------------------------------------------------------------------------
+if (!exists("path")) path <- "data/raw/nowcasting_data_raw_new.xlsx"
 
 
 ## --------------------------------------------------------------------------------------
@@ -71,34 +70,18 @@ blocks_real <- sheets %>%
 
 
 ## --------------------------------------------------------------------------------------
-# 1. Convert Date column to standard Date format (as before)
 blocks_raw <- map(blocks_raw, ~ {
   df <- .x
   df$Date <- as.Date(df$Date)
   df
 })
 
-# 2. Create the master timeline WITHOUT including the target sheet
-# This ensures quarterly sheets don't force monthly NAs into themselves too early
-all_dates <- map(blocks_raw[names(blocks_raw) != "target"], ~ .x$Date) %>% 
-  unlist() %>% 
-  as.Date(origin = "1970-01-01") %>% 
-  na.omit() %>% 
-  unique() %>% 
-  sort()
-
-master_dates <- tibble(Date = all_dates)
-
-# 3. Align only the MONTHLY sheets to the master timeline, leave 'target' as is
-blocks_raw <- imap(blocks_raw, ~ {
-  if (.y == "target") {
-    return(.x) # Keep target in its original quarterly length for lag processing
-  } else {
-    return(left_join(master_dates, .x, by = "Date"))
-  }
+blocks_real <- map(blocks_raw, ~ {
+  df <- .x
+  df$Date <- as.Date(df$Date)
+  df
 })
 
-blocks_real <- blocks_raw
 
 ## --------------------------------------------------------------------------------------
 adjust_block_for_cpi <- function(block_df, cpi_df, cols = "all") {
