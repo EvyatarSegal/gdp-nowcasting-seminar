@@ -26,9 +26,13 @@ ui <- fluidPage(
       fileInput("raw_data", "1. Upload Raw Data (Excel)",
                 accept = c(".xlsx")),
       
+      numericInput("dfm_r", "DFM 'r' parameter (factors):", value = 4, min = 1, step = 1),
+      numericInput("dfm_p", "DFM 'p' parameter (lags):", value = 3, min = 1, step = 1),
+      
       actionButton("run_btn", "2. Run Pipeline", class = "btn-primary", style = "width: 100%; margin-bottom: 20px;"),
       
-      uiOutput("download_ui")
+      uiOutput("download_ui"),
+      uiOutput("download_csv_ui")
     ),
     
     mainPanel(
@@ -46,7 +50,8 @@ server <- function(input, output, session) {
   # Reactive values to hold logs and workbook
   rv <- reactiveValues(
     logs = character(0),
-    report_wb = NULL
+    report_wb = NULL,
+    out_df = NULL
   )
   
   # Create a temporary file to hold logs for real-time streaming
@@ -74,6 +79,7 @@ server <- function(input, output, session) {
     # Reset states and log file
     rv$logs <- character(0)
     rv$report_wb <- NULL
+    rv$out_df <- NULL
     file.create(log_file) # Clear the file
     
     # Wrap entire execution in a tryCatch to log errors gracefully
@@ -96,6 +102,8 @@ server <- function(input, output, session) {
         dfm_xgb_res <- run_dfm_xgboost(
           combined_panel = trans_res$combined_panel,
           target_raw = trans_res$target_raw,
+          r_val = req(input$dfm_r),
+          p_val = req(input$dfm_p),
           update_log = append_log,
           update_progress = function(val, msg) { setProgress(value = 0.33 + (val * 0.33), detail = msg) }
         )
@@ -105,11 +113,14 @@ server <- function(input, output, session) {
         wb <- generate_report(
           models_res = dfm_xgb_res,
           blocks_shifted = trans_res$blocks_shifted,
+          r_val = req(input$dfm_r),
+          p_val = req(input$dfm_p),
           update_log = append_log,
           update_progress = function(val, msg) { setProgress(value = 0.66 + (val * 0.33), detail = msg) }
         )
         
         rv$report_wb <- wb
+        rv$out_df <- dfm_xgb_res$out_df
         append_log(">>> PIPELINE COMPLETED SUCCESSFULLY")
         setProgress(1, detail = "Done!")
       })
@@ -122,7 +133,13 @@ server <- function(input, output, session) {
   # Conditionally show the download button only when report_wb is available
   output$download_ui <- renderUI({
     if (!is.null(rv$report_wb)) {
-      downloadButton("download_report", "3. Download Excel Report", class = "btn-success", style = "width: 100%;")
+      downloadButton("download_report", "3. Download Excel Report", class = "btn-success", style = "width: 100%; margin-bottom: 10px;")
+    }
+  })
+  
+  output$download_csv_ui <- renderUI({
+    if (!is.null(rv$out_df)) {
+      downloadButton("download_csv", "4. Download Raw Predictions (CSV)", class = "btn-info", style = "width: 100%;")
     }
   })
   
@@ -134,6 +151,17 @@ server <- function(input, output, session) {
     content = function(file) {
       req(rv$report_wb)
       openxlsx::saveWorkbook(rv$report_wb, file, overwrite = TRUE)
+    }
+  )
+
+  # Download Handler for the raw predictions CSV
+  output$download_csv <- downloadHandler(
+    filename = function() {
+      "nowcast_results.csv"
+    },
+    content = function(file) {
+      req(rv$out_df)
+      write.csv(rv$out_df, file, row.names = FALSE, na = "")
     }
   )
 }

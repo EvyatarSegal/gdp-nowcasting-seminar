@@ -14,14 +14,12 @@ loadings_mat <- dfm_curr$C
 var_names <- setdiff(colnames(df_sub), "Date")
 rownames(loadings_mat) <- var_names
 
-r_val <- if (exists("dfm_r_val")) dfm_r_val else 4
-
-# Extract how heavily GDP loads onto the factors
-gdp_loadings <- loadings_mat["GDP", 1:r_val]
+# Extract how heavily GDP loads onto the 4 factors
+gdp_loadings <- loadings_mat["GDP", 1:4]
 
 # 3. Calculate DFM Nowcast directly: X = (C * F) * sd + mean
-# current_factors is our 1xr matrix from the latest row
-dfm_gdp_std <- sum(gdp_loadings * current_factors[1, 1:r_val])
+# current_factors is our 1x4 matrix from the latest row
+dfm_gdp_std <- sum(gdp_loadings * current_factors[1, 1:4])
 dfm_gdp_nowcast <- (dfm_gdp_std * gdp_sd) + gdp_mean
 
 # 4. Calculate the ensemble nowcast
@@ -48,10 +46,10 @@ library(openxlsx)
 # --- A. Calculate Factor-Level Impacts ---
 # 1. XGBoost SHAP values for the factors
 shap_matrix <- predict(xgb_model_final, current_factors, predcontrib = TRUE)
-shap_vals <- as.numeric(shap_matrix)[1:r_val]
+shap_vals <- as.numeric(shap_matrix)[1:4]
 
 # 2. DFM Factor Impacts (Linear contribution to the unscaled target)
-dfm_factor_impacts <- gdp_loadings * current_factors[1, 1:r_val] * gdp_sd
+dfm_factor_impacts <- gdp_loadings * current_factors[1, 1:4] * gdp_sd
 
 # 3. Blended Ensemble Factor Impact
 ensemble_factor_impacts <- (w_xgb * shap_vals) + (w_dfm * dfm_factor_impacts)
@@ -71,13 +69,13 @@ current_X[is.na(current_X)] <- dfm_implied_X[is.na(current_X)]
 
 # 3. Calculate Projection Matrix W = (C'C)^(-1) C' 
 C_mat <- loadings_drivers
-W_mat <- solve(t(C_mat) %*% C_mat) %*% t(C_mat)
+W_mat <- solve(t(C_mat) %*% C_mat) %*% t(C_mat) # 4 factors x 51 variables
 
 # 4. Calculate exact contributions based on TODAY'S data
 var_contributions <- numeric(nrow(loadings_drivers))
 names(var_contributions) <- rownames(loadings_drivers)
 
-for (k in 1:r_val) {
+for (k in 1:4) {
   f_impact <- ensemble_factor_impacts[k]
   
   # How much Variable J drove Factor K this month
@@ -149,7 +147,7 @@ news_print <- news_report %>%
     Impact_in_Percent = sprintf("%+.4f%%", Impact_in_Percent),
     Relative_Share_Pct = sprintf("%.2f%%", Relative_Share_Pct)
   ) %>%
-  dplyr::select(Variable, Sector, `Total Impact` = Ensemble_Impact, `Impact (%)` = Impact_in_Percent, `Relative Share (%)` = Relative_Share_Pct)
+  select(Variable, Sector, `Total Impact` = Ensemble_Impact, `Impact (%)` = Impact_in_Percent, `Relative Share (%)` = Relative_Share_Pct)
 print(as.data.frame(news_print), row.names = FALSE)
 cat("==========================================================\n")
 
@@ -225,14 +223,14 @@ news_export <- news_report %>%
     `Impact (%)` = Ensemble_Impact,
     `Relative Share (%)` = abs(Ensemble_Impact) / sum(abs(Ensemble_Impact), na.rm = TRUE)
   ) %>%
-  dplyr::select(Variable, Sector, `Total Impact` = Ensemble_Impact, `Impact (%)`, `Relative Share (%)`)
+  select(Variable, Sector, `Total Impact` = Ensemble_Impact, `Impact (%)`, `Relative Share (%)`)
 
 Sector_export <- Sector_report %>%
   mutate(
     `Impact (%)` = Total_Impact,
     `Relative Share (%)` = abs(Total_Impact) / sum(abs(Total_Impact), na.rm = TRUE)
   ) %>%
-  dplyr::select(Sector, `Total Impact` = Total_Impact, `Impact (%)`, `Relative Share (%)`)
+  select(Sector, `Total Impact` = Total_Impact, `Impact (%)`, `Relative Share (%)`)
 
 
 # Create a new workbook

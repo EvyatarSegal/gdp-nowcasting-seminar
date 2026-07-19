@@ -4,9 +4,9 @@ if (!requireNamespace("rsconnect", quietly = TRUE)) {
 library(rsconnect)
 
 # Authenticate with your shinyapps.io account
-rsconnect::setAccountInfo(name=,
-			  token=,
-			  secret=)
+rsconnect::setAccountInfo(name='evyatarbenzionsegal',
+                          token='FF25EDB15FEF4ACE873B097D88411D4A',
+                          secret='KSgzCluEhnHwu7ADRrnNnppQd+hnROSsoaRnfIaR')
 
 # Deploy the application
 message("Deploying the application to shinyapps.io...")
