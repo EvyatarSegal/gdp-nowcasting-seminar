@@ -14,74 +14,6 @@ library(openxlsx)
 library(readr)
 
 
-# ---- Constants -----
-
-required_columns <- list(
-  dataupdate = c("personal_labor_income_taxes", "1month lag"),   # adjust as needed
-  personal_labor_income_taxes = c(
-    "Date", "Total Gross Income Tax Division",
-    "Total refunds from the Income Tax Department",
-    "Total Income Tax Division Net",
-    "Deductions and the capital market",
-    "Deduction from salary", "Independents advances",
-    "Self-employed tax differences", "Independent Cancellations",
-    "self employed returns", "Capital Gains Tax Refunds",
-    "VAT Financial Institutions (Salary)", "Non-profit institution tax"
-  ),
-  corporate_business_tax = c(
-    "Date", "Companies advances", "tax differential companies",
-    "Cancellation companies",
-    "Income tax for self-employed individuals and companies (advances and deductions)",
-    "Companies returns", "excess expenses", "Bonds and dividends",
-    "Cancellations Deductions", "Goods and services"
-  ),
-  consumption_tax = c(
-    "Date", "Gross local VAT", "VAT refund autonomy and traders",
-    "Total net VAT", "Net local sales tax", "Gross fuel tax"
-  ),
-  import_trade_tax = c(
-    "Date", "Gross import VAT", "Net customs",
-    "Net import purchase tax", "Total import taxes"
-  ),
-  real_estate = c(
-    "Date", "Real estate taxation", "Property tax", "praise tax",
-    "Real estate purchase tax", "praise tax returns", "purchase returns",
-    "Apartments sold at an annual rate",
-    "Apartment Price Index (1993=100) - Mid-period reviewed"
-  ),
-  real_activity = c(
-    "Date", "cons_trust", "madad meshulav", "madad_cc_purchases_sa",
-    "madad_pedio", "madad_yetzur_industrial", "Oil", "madad_hadash"
-  ),
-  labor = c(
-    "Date", "real salary", "salaried jobs", "unemployment rate",
-    "participation rate", "employment rate"
-  ),
-  capital_markets = c("Date", "TA35", "TA125", "Nasdaq", "sp500"),
-  FX_liqudity = c(
-    "Date", "Reer", "Dollar", "Foreign exchange reserves (millions of dollars)"
-  ),
-  target = c("Date", "GDP"),
-  adjusters = c("Date", "VAT_rate", "CPI")
-)
-
-# Define the required sheets (using the exact names you provided,
-required_sheets <- c(
-  "dataupdate",
-  "personal_labor_income_taxes",
-  "corporate_business_tax",
-  "consumption_tax",
-  "import_trade_tax",
-  "real_estate",
-  "real_activity",
-  "labor",
-  "capital_markets",
-  "FX_liqudity",
-  "target",
-  "adjusters"
-)
-
-
 ## --------------------------------------------------------------------------------------
 save_list_to_excel <- function(lst, file_path = "output.xlsx") {
   # lst: a named list of data.frames
@@ -120,25 +52,12 @@ save_list_to_excel <- function(lst, file_path = "output.xlsx") {
 if (!exists("is_shiny")) is_shiny <- FALSE
 
 ## --------------------------------------------------------------------------------------
-if (!exists("path")) path <- "data/raw/nowcasting_data_raw_new.xlsx"
+path <- "data/raw/nowcasting_data_raw.xlsx"
+## --------------------------------------------------------------------------------------
 
 
 ## --------------------------------------------------------------------------------------
 sheets <- excel_sheets(path)
-
-stopifnot("You are missing a sheet in the excel file you uploaded, \nplease make sure all of the following are in the file you uploaded\n1. personal_labor_income_taxes\n2. corporate_business_tax\n3. consumption_tax\n4. import_trade_tax\n5. real_estate\n6. real_activity\n7. labor\n8. capital_markets\n9. FX_liqudity\n10. target\n11. adjusters\n12. dataupdate"=length(sheets) >= 12)
-
-
-# Warn if there are any sheets not in the required list
-extra_sheets <- setdiff(sheets, required_sheets)
-if (length(extra_sheets) > 0) {
-  warning(
-    "You have unnecessary sheets in the Excel file: ",
-    paste(extra_sheets, collapse = ", "),
-    "\nExpected sheets are:\n",
-    paste(required_sheets, collapse = "\n")
-  )
-}
 
 sheets <- sheets[!sheets %in% c("dataupdate")]
 ## --------------------------------------------------------------------------------------
@@ -152,53 +71,34 @@ blocks_real <- sheets %>%
 
 
 ## --------------------------------------------------------------------------------------
+# 1. Convert Date column to standard Date format (as before)
 blocks_raw <- map(blocks_raw, ~ {
   df <- .x
   df$Date <- as.Date(df$Date)
   df
 })
 
-blocks_real <- map(blocks_raw, ~ {
-  df <- .x
-  df$Date <- as.Date(df$Date)
-  df
+# 2. Create the master timeline WITHOUT including the target sheet
+# This ensures quarterly sheets don't force monthly NAs into themselves too early
+all_dates <- map(blocks_raw[names(blocks_raw) != "target"], ~ .x$Date) %>% 
+  unlist() %>% 
+  as.Date(origin = "1970-01-01") %>% 
+  na.omit() %>% 
+  unique() %>% 
+  sort()
+
+master_dates <- tibble(Date = all_dates)
+
+# 3. Align only the MONTHLY sheets to the master timeline, leave 'target' as is
+blocks_raw <- imap(blocks_raw, ~ {
+  if (.y == "target") {
+    return(.x) # Keep target in its original quarterly length for lag processing
+  } else {
+    return(left_join(master_dates, .x, by = "Date"))
+  }
 })
 
-
-
-# This snippet lets you know if you are missing any data series
-# Or if you have extras we are not expecting
-for (sheet_name in names(required_columns)) {
-  
-  # Ensure the sheet actually exists in blocks_raw
-  if (!sheet_name %in% names(blocks_raw)) {
-    stop("Missing sheet: ", sheet_name)
-  }
-  
-  actual_cols <- colnames(blocks_raw[[sheet_name]])
-  expected_cols <- required_columns[[sheet_name]]
-  
-  # Missing columns → error
-  missing_cols <- setdiff(expected_cols, actual_cols)
-  if (length(missing_cols) > 0) {
-    stop(
-      "In sheet '", sheet_name, "', missing columns: ",
-      paste(missing_cols, collapse = ", ")
-    )
-  }
-  
-  # Extra columns → warning
-  extra_cols <- setdiff(actual_cols, expected_cols)
-  if (length(extra_cols) > 0) {
-    warning(
-      "In sheet '", sheet_name, "', unnecessary columns: ",
-      paste(extra_cols, collapse = ", "),
-      "\nExpected columns are:\n",
-      paste(expected_cols, collapse = "\n")
-    )
-  }
-}
-
+blocks_real <- blocks_raw
 
 ## --------------------------------------------------------------------------------------
 adjust_block_for_cpi <- function(block_df, cpi_df, cols = "all") {
