@@ -44,7 +44,7 @@ run_transformations <- function(raw_data_path, td_ts, hag_ts, update_log = funct
   ))
 }
 
-run_dfm_xgboost <- function(combined_panel, target_raw, update_progress = NULL, update_log = NULL) {
+run_dfm_xgboost <- function(combined_panel, target_raw, r_val = 4, p_val = 3, update_progress = NULL, update_log = NULL) {
   if (is.null(update_progress)) update_progress <- function(val, msg) {}
   if (is.null(update_log)) update_log <- function(msg) {}
   
@@ -55,6 +55,8 @@ run_dfm_xgboost <- function(combined_panel, target_raw, update_progress = NULL, 
   env$is_shiny <- TRUE
   env$df <- combined_panel
   env$target_df <- target_raw
+  env$dfm_r_val <- r_val
+  env$dfm_p_val <- p_val
   
   # Inject logging capture
   env$message <- function(...) update_log(paste(..., collapse = " "))
@@ -77,11 +79,12 @@ run_dfm_xgboost <- function(combined_panel, target_raw, update_progress = NULL, 
     current_gdp_nowcast = env$current_gdp_nowcast,
     base_level = env$base_level,
     base_date = env$base_date,
-    target_raw = target_raw
+    target_raw = target_raw,
+    out_df = env$out_df
   ))
 }
 
-generate_report <- function(models_res, blocks_shifted, update_log = function(msg) { message(msg) }, update_progress = function(val, msg) {}) {
+generate_report <- function(models_res, blocks_shifted, r_val = 4, p_val = 3, update_log = function(msg) { message(msg) }, update_progress = function(val, msg) {}) {
   update_log("Generating ensemble nowcast and report script...")
   update_progress(0.1, "Running Report script")
   
@@ -94,6 +97,8 @@ generate_report <- function(models_res, blocks_shifted, update_log = function(ms
   env$base_level <- models_res$base_level
   env$xgb_model_final <- models_res$xgb_model_final
   env$blocks_shifted <- blocks_shifted
+  env$dfm_r_val <- r_val
+  env$dfm_p_val <- p_val
   
   # Inject logging capture
   env$message <- function(...) update_log(paste(..., collapse = " "))

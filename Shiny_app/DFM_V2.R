@@ -6,6 +6,7 @@
 library(dfms)
 library(readxl)
 library(dplyr)
+library(openxlsx)
 library(lubridate)
 library(xts)
 library(xgboost)
@@ -68,9 +69,12 @@ print(paste("Running rolling forecast from", start_date, "to", end_date))
 # Initialize results data frame with exactly the right dimensions
 results_report <- data.frame(Date = all_months)
 
-# Dynamically generate all 16 tracking columns
+# Dynamically generate tracking columns based on r_val
+r_val <- if (exists("dfm_r_val")) dfm_r_val else 4
+p_val <- if (exists("dfm_p_val")) dfm_p_val else 3
+
 for (h in 0:3) {
-  for (f in 1:4) {
+  for (f in 1:r_val) {
     col_name <- paste0("h", h, "_f", f)
     results_report[[col_name]] <- NA_real_
   }
@@ -103,22 +107,22 @@ for (i in seq_along(all_months)) {
   
   # Fit DFM
   dfm_curr <- DFM(
-    X = X_xts, r = 4, p = 3,
+    X = X_xts, r = r_val, p = p_val,
     quarterly.vars = "GDP", em.method = "BM"
   )
   
   # Predict and safely extract vectors
   pred <- predict(dfm_curr, h = h_val, standardized = TRUE)
-  F_h  <- pred$F[h_val, 1:4]
-  F_h0 <- as.vector(tail(dfm_curr$F_qml, 1))[1:4]
+  F_h  <- pred$F[h_val, 1:r_val]
+  F_h0 <- as.vector(tail(dfm_curr$F_qml, 1))[1:r_val]
   
   # --- Safe Data Assignment & Index-Out-Of-Bounds Protection ---
   if ((i + h_val) <= max_idx) {
-    target_cols <- paste0("h", h_val, "_f", 1:4)
+    target_cols <- paste0("h", h_val, "_f", 1:r_val)
     results_report[i + h_val, target_cols] <- F_h
   }
   
-  h0_cols <- paste0("h0_f", 1:4)
+  h0_cols <- paste0("h0_f", 1:r_val)
   results_report[i, h0_cols] <- F_h0
 }
 
@@ -128,7 +132,7 @@ for (i in seq_along(all_months)) {
 
 # 1. Safely extract factors from the final loop iteration and map dates
 all_factors <- data.frame(dfm_curr$F_qml)
-colnames(all_factors) <- c("f1", "f2", "f3", "f4")
+colnames(all_factors) <- paste0("f", 1:r_val)
 all_factors$Date <- tail(df_sub$Date, nrow(all_factors))
 
 # 2. Extract ONLY the rows from df_clean where a shifted GDP actually exists
@@ -150,7 +154,7 @@ train_data <- x_train_prep %>%
 
 # 5. Rebuild the C++ matrix structure cleanly using an aligned base data frame
 base_df <- as.data.frame(train_data)
-X_mat   <- as.matrix(base_df[, c("f1", "f2", "f3", "f4")])
+X_mat   <- as.matrix(base_df[, paste0("f", 1:r_val)])
 mode(X_mat) <- "double" # Clear 64-bit float alignment assignment
 
 y_vec   <- as.numeric(base_df$GDP)
@@ -179,8 +183,8 @@ xgb_model <- xgb.train(params = params, data = dtrain, nrounds = 300)
 
 # Extract test inputs (only rows with fully populated factors)
 X_test_factors <- results_report[rowSums(is.na(results_report[ , -1])) < (ncol(results_report) - 1), ]
-X_test_mat <- as.matrix(X_test_factors[, c("h0_f1","h0_f2","h0_f3", "h0_f4")])
-colnames(X_test_mat) <- c("f1","f2","f3", "f4")
+X_test_mat <- as.matrix(X_test_factors[, paste0("h0_f", 1:r_val)])
+colnames(X_test_mat) <- paste0("f", 1:r_val)
 
 # Predict out-of-sample
 pred_test <- predict(xgb_model, X_test_mat)
@@ -214,8 +218,8 @@ results <- results %>%
 # Add forecast column (initialised with NA)
 results$GDP_FCST <- NA
 
-# Identify rows where all four h0 factors are available (used as input to XGBoost)
-idx_forecast <- which(rowSums(is.na(results[, c("h0_f1","h0_f2","h0_f3","h0_f4")])) == 0)
+# Identify rows where all h0 factors are available (used as input to XGBoost)
+idx_forecast <- which(rowSums(is.na(results[, paste0("h0_f", 1:r_val)])) == 0)
 results$GDP_FCST[idx_forecast] <- pred_test
 
 
@@ -291,11 +295,11 @@ legend("bottomleft",
 
 # Extract all rows where both historical factors and shifted GDP exist
 final_train <- results %>%
-  filter(!is.na(GDP) & 
-           !is.na(h0_f1) & !is.na(h0_f2) & !is.na(h0_f3) & !is.na(h0_f4))
+  filter(!is.na(GDP)) %>%
+  filter(if_all(all_of(paste0("h0_f", 1:r_val)), ~ !is.na(.x)))
 
 # Features and target
-X_all <- as.matrix(final_train[, c("h0_f1", "h0_f2", "h0_f3", "h0_f4")])
+X_all <- as.matrix(final_train[, paste0("h0_f", 1:r_val)])
 y_all <- final_train$GDP
 
 # Recalculate weights using the full sample, giving more importance to recent data
@@ -311,7 +315,7 @@ xgb_model_final <- xgb.train(params = params, data = dtrain_final, nrounds = 300
 
 # The "current date" is the last month in our results (most recent observation)
 current_idx <- nrow(results)
-current_factors <- as.matrix(results[current_idx, c("h0_f1", "h0_f2", "h0_f3", "h0_f4")])
+current_factors <- as.matrix(results[current_idx, paste0("h0_f", 1:r_val), drop = FALSE])
 
 # Predict GDP for the current date
 current_gdp_nowcast <- predict(xgb_model_final, current_factors)
@@ -319,7 +323,26 @@ current_gdp_nowcast <- predict(xgb_model_final, current_factors)
 # Print or store the result
 cat(sprintf("\nFinal nowcast for %s: %.4f\n", results$Date[current_idx], current_gdp_nowcast))
 
+# ==============================================================================
+# 9.1 FULL MONTHLY PREDICTIONS FROM THE FINAL MODEL
+# ==============================================================================
 
+# Identify all rows in 'results' that have complete h0 factors
+monthly_idx <- which(
+  rowSums(is.na(results[, paste0("h0_f", 1:r_val)])) == 0
+)
+
+# Build the feature matrix for those months
+X_monthly <- as.matrix(results[monthly_idx, paste0("h0_f", 1:r_val)])
+
+# Predict using the final model (trained on all data)
+monthly_pred_final <- predict(xgb_model_final, X_monthly)
+
+# Add the column to results (initialise with NA, then fill)
+results$GDP_FinalModel <- NA_real_
+results$GDP_FinalModel[monthly_idx] <- monthly_pred_final
+
+# The last row (current nowcast) is automatically included because it has h0 factors
 
 
 # ==============================================================================
@@ -354,3 +377,25 @@ cat(sprintf("Nowcasted quarterly growth: %.4f (%.2f%%)\n",
             current_gdp_nowcast, current_gdp_nowcast * 100))
 cat(sprintf("Nowcasted GDP level for %s: %.2f\n\n",
             results$Date[current_idx], nowcast_gdp_level))
+
+# ==============================================================================
+# 11. EXPORT RESULTS TO CSV (5‑column layout, blank NAs, 4 decimals)
+# ==============================================================================
+
+out_df <- results %>%
+  dplyr::select(
+    Date,
+    GDP_Actual        = GDP,
+    GDP_OutOfSample   = GDP_FCST,
+    GDP_FinalModel    = GDP_FinalModel
+  ) %>%
+  dplyr::mutate(
+    Diff_OutOfSample = GDP_OutOfSample - GDP_Actual,
+    Diff_FinalModel  = GDP_FinalModel - GDP_Actual,
+    across(where(is.numeric), ~ round(.x, 4))
+  )
+
+write.csv(out_df,
+          file = "output/nowcast_results.csv",
+          row.names = FALSE,
+          na = "")

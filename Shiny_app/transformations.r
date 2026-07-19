@@ -120,7 +120,7 @@ save_list_to_excel <- function(lst, file_path = "output.xlsx") {
 if (!exists("is_shiny")) is_shiny <- FALSE
 
 ## --------------------------------------------------------------------------------------
-if (!exists("path")) path <- "data/raw/nowcasting_data_raw_new.xlsx"
+if (!exists("path")) path <- "data/raw/nowcasting_data_raw_new - copy.xlsx"
 
 
 ## --------------------------------------------------------------------------------------
