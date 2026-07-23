@@ -403,4 +403,4 @@ lines(benchmark_data$Date, benchmark_data$GDP_FCST[match(benchmark_data$Date, oo
       col="red", lwd=2, lty=2)
 lines(benchmark_data$Date, benchmark_data$GDP_AR1, col="blue", lwd=2, lty=3)
 legend("bottomleft", legend=c("Actual", "Your XGBoost Model", "AR(1) Baseline"),
-       col=c("black", "red", "blue"), lty=c(1, 2, 3), lwd=2)
+       col=c("black", "red", "blue"), lty=c(1, 2, 3), lwd=2, cex=0.5)
